@@ -324,7 +324,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyD5Lkndxsszt6H7WIGZ7jJyB8OmPppEZc6fp7usH3cIfbw7yeJCgtx826q4msMZq5c5A/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbykHwt-2kUMo7q62Y8y24osDBBPBIrdsjqE_Izug9y-88bFnHmhIdqFrPTHzqnuEExK-A/exec';
 
 // ══ 로컬 상태 ════════════════════════════════════
 const SK = 'ahsc_v3';
@@ -456,14 +456,30 @@ async function loadFromSheets(manual=false) {
     }
 
     // 지출예정일 맵 {전표번호 → {payDate, payWayCode}}
+    // 컬럼: 회계일자(A) | 결의전표번호(B) | 적요(C) | 금액(D) | 거래처명(E) | 계좌번호(F) | 결제수단(G) | 지출예정일(H)
     const payDateMap = {};
-    if (payDateTxt && payDateTxt.includes('전표번호')) {
-      parseCSV(payDateTxt).forEach(r => {
-        if (r['전표번호']) payDateMap[r['전표번호']] = {
-          payDate:    r['지출예정일']||'',
-          payWayCode: r['결제수단']||'',
-        };
-      });
+    if (payDateTxt) {
+      const lines = payDateTxt.trim().split('\n');
+      if (lines.length > 1) {
+        // 헤더 행으로 컬럼 인덱스 파악
+        const headers = parseRow(lines[0]).map(h=>h.replace(/"/g,'').trim());
+        const iSlip   = headers.indexOf('결의전표번호');
+        const iPay    = headers.indexOf('지출예정일');
+        const iWay    = headers.indexOf('결제수단');
+        // 헤더가 없거나 구버전(전표번호)이면 fallback
+        const fallback = iSlip < 0;
+
+        lines.slice(1).forEach(line => {
+          const cols = parseRow(line).map(c=>c.replace(/"/g,'').trim());
+          if (!cols.length) return;
+          const slipNo  = fallback ? cols[0] : cols[iSlip] || '';
+          const payDate = fallback ? cols[1] : (iPay>=0 ? cols[iPay] : cols[7]) || '';
+          const payWay  = fallback ? cols[2] : (iWay>=0 ? cols[iWay] : cols[6]) || '';
+          if (slipNo && slipNo !== '결의전표번호') {
+            payDateMap[slipNo] = { payDate, payWayCode: payWay };
+          }
+        });
+      }
     }
 
     // 전체 월 데이터 합치기 (중복 전표번호 제거) + 지출예정일 병합
@@ -675,15 +691,42 @@ function nextFundDay(ref) {
 }
 function assignFundDay(raw) {
   if(!raw) return null;
-  const s=String(raw).replace(/\D/g,'');
-  if(s.length<8) return null;
-  const yr=parseInt(s.slice(0,4)),mon=parseInt(s.slice(4,6))-1,day=parseInt(s.slice(6,8));
-  const dt=new Date(yr,mon,day);
-  const days=getFundDaysForDate(dt);
-  for(const fd of days) if(day<=fd) return new Date(yr,mon,fd);
-  const next=new Date(yr,mon+1,1);
-  const nextDays=getFundDaysForDate(next);
-  return new Date(yr,mon+1,nextDays[0]||1);
+  const s = String(raw).trim();
+
+  // 다양한 형식 파싱
+  // 형식1: "20260402" (8자리 숫자)
+  // 형식2: "2026-04-02" or "2026/04/02"
+  // 형식3: "04-02" or "04/02" → 현재 연도 기준
+  // 형식4: "04-2", "4-2" (MM-D)
+  let yr, mon, day;
+
+  const digits = s.replace(/\D/g,'');
+  if (digits.length === 8) {
+    yr  = parseInt(digits.slice(0,4));
+    mon = parseInt(digits.slice(4,6)) - 1;
+    day = parseInt(digits.slice(6,8));
+  } else {
+    // 구분자로 분리
+    const parts = s.split(/[-\/\.]/).map(p=>parseInt(p)).filter(p=>!isNaN(p));
+    if (parts.length === 3) {
+      // YYYY-MM-DD
+      yr  = parts[0]; mon = parts[1]-1; day = parts[2];
+    } else if (parts.length === 2) {
+      // MM-DD → 현재 연도 적용
+      const now = new Date();
+      yr  = now.getFullYear();
+      mon = parts[0]-1;
+      day = parts[1];
+    } else return null;
+  }
+
+  if (!yr||isNaN(mon)||!day) return null;
+  const dt   = new Date(yr, mon, day);
+  const days = getFundDaysForDate(dt);
+  for(const fd of days) if(day<=fd) return new Date(yr, mon, fd);
+  const next     = new Date(yr, mon+1, 1);
+  const nextDays = getFundDaysForDate(next);
+  return new Date(yr, mon+1, nextDays[0]||1);
 }
 function dk(d) {
   if(!d) return '';
@@ -874,13 +917,18 @@ async function saveVoucherChanges() {
   const cnt = Object.keys(vChanges).length;
   if (!cnt) { toast('변경된 내용 없음','i'); return; }
 
-  // 현재 vouchers에서 최신값 반영
+  // 현재 vouchers에서 최신값 + 부가정보 반영
   const items = Object.entries(vChanges).map(([slipNo, changes]) => {
     const v = S.vouchers.find(x=>x.slipNo===slipNo) || {};
     return {
       slipNo,
-      payDate:    changes.payDate    ?? v.payDate    ?? '',
-      payWayCode: changes.payWayCode ?? v.payWayCode ?? '계좌이체',
+      payDate:        changes.payDate    ?? v.payDate    ?? '',
+      payWayCode:     changes.payWayCode ?? v.payWayCode ?? '계좌이체',
+      // 부가정보 (Sheets에 함께 저장)
+      remarksCodeNm:  v.remarksCodeNm  || '',
+      gyulAmt:        v.gyulAmt        || '',
+      custNm:         v.custNm         || '',
+      bankAccount:    v.bankAccount    || '',
     };
   });
 
