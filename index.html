@@ -432,7 +432,7 @@ async function loadFromSheets(manual=false) {
     ]);
 
     // 재고현황 (db_inventory - 피벗 요약 데이터)
-    if (inventoryTxt && (inventoryTxt.includes('대분류') || inventoryTxt.includes('대수'))) {
+    if (inventoryTxt && inventoryTxt.includes('기준일:')) {
       const invLines = inventoryTxt.trim().split('\n');
       if (invLines.length > 1) {
         const h0 = invLines[0];
@@ -957,8 +957,10 @@ async function saveVoucherChanges() {
 
 // ══ 자금계획 ══════════════════════════════════════
 function renderBal(){
+  const _balGrid=document.getElementById('balGrid');
+  if(!_balGrid) return;
   const items=[{k:'보통예금',lbl:'보통예금'},{k:'사용제한예금',lbl:'사용제한예금 (불가용)'},{k:'현금',lbl:'현금'},{k:'상품권',lbl:'상품권'}];
-  document.getElementById('balGrid').innerHTML=items.map(it=>`
+  _balGrid.innerHTML=items.map(it=>`
     <div class="bal-card"><div class="bal-lbl">${it.lbl}</div>
     <input class="bal-inp" id="bal-${it.k}" value="${S.balances[it.k]?fmt(S.balances[it.k]):''}" placeholder="0" oninput="fmtInput(this)"></div>`).join('');
 }
