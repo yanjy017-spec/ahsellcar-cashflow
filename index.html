@@ -319,7 +319,8 @@ select.fi option{background:var(--bg)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ══ 비밀번호 설정 (여기만 수정하면 됩니다) ══════════
-const APP_PASSWORD = '215366';   // ← 비밀번호 변경 시 이 값만 수정
+const APP_PASSWORD = '215366';   // 전체 접근
+const APP_PASSWORD_INV = '1111'; // 재고 전용
 const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
@@ -580,6 +581,12 @@ function checkPw() {
   const input = document.getElementById('pwInput').value;
   if (input === APP_PASSWORD) {
     sessionStorage.setItem(LOGIN_KEY, '1');
+    sessionStorage.removeItem('inv_only');
+    document.getElementById('loginOverlay').classList.add('hide');
+    initApp();
+  } else if (input === APP_PASSWORD_INV) {
+    sessionStorage.setItem(LOGIN_KEY, '1');
+    sessionStorage.setItem('inv_only', '1');
     document.getElementById('loginOverlay').classList.add('hide');
     initApp();
   } else {
@@ -607,7 +614,24 @@ window.onload = () => {
 async function initApp() {
   const today=new Date();
   curMonth=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-  // 초기 페이지는 대시보드 → 월 탭 표시
+
+  // 재고 전용 모드
+  if (sessionStorage.getItem('inv_only') === '1') {
+    // 재고 외 메뉴 숨김
+    ['nav-dash','nav-voucher','nav-fund','nav-auto','nav-settings'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    // 월탭 숨김
+    document.getElementById('monthTabs').style.display = 'none';
+    // 재고 페이지로 이동
+    goPage('inventory', document.getElementById('nav-inventory'));
+    await loadFromSheets();
+    setInterval(()=>loadFromSheets(), 30*60*1000);
+    return;
+  }
+
+  // 일반 모드
   document.getElementById('monthTabs').style.display = '';
   if (S.vouchers.length) {
     showLoading(false);
@@ -1191,79 +1215,72 @@ function renderInventory() {
   const uploadStr = S.invUpload || '';
   info.innerHTML = dateStr ? `기준일 <span style="color:var(--acc);font-family:var(--mo)">${dateStr}</span> · 업로드 ${uploadStr}` : '';
 
-  function fmt(n){ return n.toLocaleString(); }
+  function fmt(n){ return Number(n||0).toLocaleString(); }
 
-  // 출품영업팀 상위 15개 + 기타 처리
+  // 그룹별로 묶기: subtotal 행의 dept를 앞 detail 행들에 주입
   const processed = [];
-  let exhibitionDetails = [];
-  let inExhibition = false;
+  let pendingDetails = [];
+  let currentGroup = '';
 
   for (const r of rows) {
-    if (r.type === 'detail' && r.dept === '출품영업팀') {
-      inExhibition = true;
-      exhibitionDetails.push(r);
-      continue;
-    }
-    if (inExhibition && r.type !== 'detail') {
-      const top15 = exhibitionDetails.slice(0, 15);
-      const rest = exhibitionDetails.slice(15);
-      processed.push(...top15);
-      if (rest.length > 0) {
+    if (r.type === 'detail') {
+      pendingDetails.push({...r});
+    } else if (r.type === 'subtotal') {
+      currentGroup = r.dept;
+      // 출품영업팀은 상위 15개 + 기타 처리
+      let details = pendingDetails;
+      if (currentGroup === '출품영업팀' && details.length > 15) {
+        const rest = details.slice(15);
+        details = details.slice(0, 15);
         const etc = {dept:'', owner:'기타', cnt:0, amt:0, cost:0, total:0, type:'detail'};
         for (const x of rest) { etc.cnt+=x.cnt; etc.amt+=x.amt; etc.cost+=x.cost; etc.total+=x.total; }
-        processed.push(etc);
+        details.push(etc);
       }
-      exhibitionDetails = [];
-      inExhibition = false;
-    }
-    processed.push(r);
-  }
-  if (exhibitionDetails.length) {
-    const top15 = exhibitionDetails.slice(0, 15);
-    const rest = exhibitionDetails.slice(15);
-    processed.push(...top15);
-    if (rest.length > 0) {
-      const etc = {dept:'', owner:'기타', cnt:0, amt:0, cost:0, total:0, type:'detail'};
-      for (const x of rest) { etc.cnt+=x.cnt; etc.amt+=x.amt; etc.cost+=x.cost; etc.total+=x.total; }
-      processed.push(etc);
+      // 첫 번째 detail 행에 그룹명 표시
+      details.forEach((d, i) => { d._group = i === 0 ? currentGroup : ''; });
+      processed.push(...details);
+      processed.push({...r});
+      pendingDetails = [];
+    } else {
+      processed.push({...r});
     }
   }
 
-  let html = '<table style="font-size:12px"><thead><tr>';
-  html += '<th style="min-width:110px">매입담당자부서</th>';
-  html += '<th style="min-width:160px">소유구분</th>';
-  html += '<th style="text-align:right;min-width:50px">대수</th>';
-  html += '<th style="text-align:right;min-width:120px">매입가(공급가)</th>';
-  html += '<th style="text-align:right;min-width:120px">총부대비(공급가)</th>';
-  html += '<th style="text-align:right;min-width:120px">합계(공급가)</th>';
+  let html = '<table style="font-size:14px"><thead><tr>';
+  html += '<th style="min-width:130px">매입담당부서</th>';
+  html += '<th style="min-width:180px">소유구분</th>';
+  html += '<th style="text-align:right;min-width:60px">대수</th>';
+  html += '<th style="text-align:right;min-width:140px">매입가(공급가)</th>';
+  html += '<th style="text-align:right;min-width:140px">총부대비(공급가)</th>';
+  html += '<th style="text-align:right;min-width:140px">합계(공급가)</th>';
   html += '</tr></thead><tbody>';
 
   for (const r of processed) {
     if (r.type === 'total') {
-      html += `<tr style="background:rgba(46,204,122,.08);font-weight:700;font-size:13px;border-top:2px solid var(--grn)">`;
-      html += `<td colspan="2" style="text-align:right;padding-right:12px;color:var(--grn)">총합계</td>`;
-      html += `<td class="amt" style="color:var(--grn)">${fmt(r.cnt)}</td>`;
-      html += `<td class="amt" style="color:var(--grn)">${fmt(r.amt)}</td>`;
-      html += `<td class="amt" style="color:var(--grn)">${fmt(r.cost)}</td>`;
-      html += `<td class="amt" style="color:var(--grn)">${fmt(r.total)}</td>`;
+      html += `<tr style="background:rgba(46,204,122,.08);font-weight:700;font-size:15px;border-top:2px solid var(--grn)">`;
+      html += `<td colspan="2" style="text-align:right;padding-right:16px;color:var(--grn)">총합계</td>`;
+      html += `<td class="amt" style="color:var(--grn);font-size:15px">${fmt(r.cnt)}</td>`;
+      html += `<td class="amt" style="color:var(--grn);font-size:15px">${fmt(r.amt)}</td>`;
+      html += `<td class="amt" style="color:var(--grn);font-size:15px">${fmt(r.cost)}</td>`;
+      html += `<td class="amt" style="color:var(--grn);font-size:15px">${fmt(r.total)}</td>`;
       html += '</tr>';
     } else if (r.type === 'subtotal') {
-      html += `<tr style="background:var(--s2);font-weight:600;border-bottom:2px solid var(--bd2)">`;
-      html += `<td colspan="2" style="text-align:right;padding-right:12px;color:var(--acc)">${r.dept}</td>`;
+      html += `<tr style="background:rgba(74,128,255,.12);font-weight:700;font-size:14px;border-top:1px solid rgba(74,128,255,.3);border-bottom:2px solid rgba(74,128,255,.3)">`;
+      html += `<td colspan="2" style="padding-left:12px;color:var(--acc)">${r.dept} 합계</td>`;
       html += `<td class="amt" style="color:var(--acc)">${fmt(r.cnt)}</td>`;
       html += `<td class="amt" style="color:var(--acc)">${fmt(r.amt)}</td>`;
       html += `<td class="amt" style="color:var(--acc)">${fmt(r.cost)}</td>`;
       html += `<td class="amt" style="color:var(--acc)">${fmt(r.total)}</td>`;
       html += '</tr>';
     } else {
-      const hasDept = r.dept && !r.dept.includes('요약');
+      const grpLabel = r._group || '';
       html += '<tr>';
-      html += `<td style="font-weight:${hasDept?'600':'400'};color:${hasDept?'var(--tx)':'var(--tx2)'}">${r.dept}</td>`;
-      html += `<td style="padding-left:${hasDept?'0':'16'}px">${r.owner}</td>`;
-      html += `<td class="amt">${fmt(r.cnt)}</td>`;
-      html += `<td class="amt">${fmt(r.amt)}</td>`;
-      html += `<td class="amt">${fmt(r.cost)}</td>`;
-      html += `<td class="amt">${fmt(r.total)}</td>`;
+      html += `<td style="font-weight:${grpLabel?'700':'400'};color:${grpLabel?'var(--acc)':'var(--tx3)'};font-size:${grpLabel?'14':'13'}px">${grpLabel}</td>`;
+      html += `<td style="padding-left:16px;font-size:14px">${r.owner}</td>`;
+      html += `<td class="amt" style="font-size:14px">${fmt(r.cnt)}</td>`;
+      html += `<td class="amt" style="font-size:14px">${fmt(r.amt)}</td>`;
+      html += `<td class="amt" style="font-size:14px">${fmt(r.cost)}</td>`;
+      html += `<td class="amt" style="font-size:14px">${fmt(r.total)}</td>`;
       html += '</tr>';
     }
   }
