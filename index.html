@@ -265,13 +265,13 @@ select.fi option{background:var(--bg)}
 
     <!-- 현재 재고 -->
     <div class="page" id="page-inventory">
-      <div class="panel">
-        <div class="ph">
-          <span class="ph-title">📦 현재 재고현황</span>
-          <span class="sync-info" id="invSyncInfo"></span>
+      <div class="panel" style="background:#fff;border-color:#e5e7eb">
+        <div class="ph" style="background:#fff;border-color:#e5e7eb">
+          <span class="ph-title" style="color:#111;font-size:15px">📦 현재 재고현황</span>
+          <span class="sync-info" id="invSyncInfo" style="color:#555"></span>
         </div>
         <div class="pb" id="invContent" style="padding:0">
-          <div style="padding:40px;text-align:center;color:var(--tx3)">데이터 로딩 중...</div>
+          <div style="padding:40px;text-align:center;color:#666">데이터 로딩 중...</div>
         </div>
       </div>
     </div>
@@ -1273,7 +1273,7 @@ function renderInventory() {
   const info = document.getElementById('invSyncInfo');
   const rows = S.inventory || [];
   if (!rows.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:#333">db_inventory 탭에 데이터가 없습니다.</div>';
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#666">db_inventory 탭에 데이터가 없습니다.</div>';
     return;
   }
 
@@ -1283,75 +1283,83 @@ function renderInventory() {
 
   function fmt(n){ return Number(n||0).toLocaleString(); }
 
-  // 그룹별로 묶기: subtotal 기준으로 앞 detail 수집
-  // 원가(total)=0 제외, 출품영업팀 전체 표시, 첫 detail에 그룹명 주입
-  const processed = [];
+  // 그룹별 묶기 + 원가 0원 제외
+  const groups = []; // [{dept, details[], subtotal}]
   let pendingDetails = [];
+  let totalRow = null;
 
   for (const r of rows) {
     if (r.type === 'detail') {
-      // 원가 0원 제외
       if (Number(r.total) === 0) continue;
       pendingDetails.push({...r});
     } else if (r.type === 'subtotal') {
-      // 첫 번째 detail에 그룹명 표시
-      pendingDetails.forEach((d, i) => { d._group = i === 0 ? r.dept : ''; });
-      // 그룹 구분 여백용 spacer
-      if (processed.length > 0) processed.push({type:'spacer'});
-      processed.push(...pendingDetails);
-      processed.push({...r});
+      groups.push({ dept: r.dept, details: pendingDetails, sub: {...r} });
       pendingDetails = [];
-    } else {
-      processed.push({...r});
-    }
-  }
-
-  // 흰 배경 + 검정 글자 테마
-  let html = '<div style="background:#fff;border-radius:8px;overflow:hidden">';
-  html += '<table style="font-size:14px;width:100%;border-collapse:collapse"><thead><tr style="background:#1e40af;color:#fff">';
-  html += '<th style="min-width:130px;padding:10px 12px;text-align:left">매입담당부서</th>';
-  html += '<th style="min-width:180px;padding:10px 12px;text-align:left">소유구분</th>';
-  html += '<th style="text-align:right;min-width:60px;padding:10px 12px">대수</th>';
-  html += '<th style="text-align:right;min-width:140px;padding:10px 12px">매입가(공급가)</th>';
-  html += '<th style="text-align:right;min-width:140px;padding:10px 12px">총부대비(공급가)</th>';
-  html += '<th style="text-align:right;min-width:140px;padding:10px 12px">합계(공급가)</th>';
-  html += '</tr></thead><tbody>';
-
-  for (const r of processed) {
-    if (r.type === 'spacer') {
-      html += '<tr><td colspan="6" style="padding:4px;background:#f0f4ff"></td></tr>';
     } else if (r.type === 'total') {
-      html += '<tr style="background:#d1fae5;border-top:2px solid #059669">';
-      html += '<td colspan="2" style="text-align:right;padding:10px 16px;font-weight:700;font-size:15px;color:#065f46">총합계</td>';
-      html += `<td style="text-align:right;padding:10px 12px;font-weight:700;font-size:15px;color:#065f46;font-family:var(--mo)">${fmt(r.cnt)}</td>`;
-      html += `<td style="text-align:right;padding:10px 12px;font-weight:700;font-size:15px;color:#065f46;font-family:var(--mo)">${fmt(r.amt)}</td>`;
-      html += `<td style="text-align:right;padding:10px 12px;font-weight:700;font-size:15px;color:#065f46;font-family:var(--mo)">${fmt(r.cost)}</td>`;
-      html += `<td style="text-align:right;padding:10px 12px;font-weight:700;font-size:15px;color:#065f46;font-family:var(--mo)">${fmt(r.total)}</td>`;
-      html += '</tr>';
-    } else if (r.type === 'subtotal') {
-      html += '<tr style="background:#dbeafe;border-top:1px solid #93c5fd">';
-      html += `<td colspan="2" style="padding:9px 12px;font-weight:700;font-size:14px;color:#1e40af">${r.dept} 합계</td>`;
-      html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(r.cnt)}</td>`;
-      html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(r.amt)}</td>`;
-      html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(r.cost)}</td>`;
-      html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(r.total)}</td>`;
-      html += '</tr>';
-    } else {
-      const grpLabel = r._group || '';
-      const rowBg = grpLabel ? 'background:#eff6ff' : 'background:#fff';
-      html += `<tr style="${rowBg};border-bottom:1px solid #e5e7eb">`;
-      html += `<td style="padding:8px 12px;font-weight:${grpLabel?'700':'400'};color:${grpLabel?'#1e40af':'#111'};font-size:${grpLabel?'14':'13'}px">${grpLabel}</td>`;
-      html += `<td style="padding:8px 12px 8px 24px;color:#111;font-size:14px">${r.owner}</td>`;
-      html += `<td style="text-align:right;padding:8px 12px;color:#111;font-family:var(--mo)">${fmt(r.cnt)}</td>`;
-      html += `<td style="text-align:right;padding:8px 12px;color:#111;font-family:var(--mo)">${fmt(r.amt)}</td>`;
-      html += `<td style="text-align:right;padding:8px 12px;color:#111;font-family:var(--mo)">${fmt(r.cost)}</td>`;
-      html += `<td style="text-align:right;padding:8px 12px;color:#111;font-family:var(--mo)">${fmt(r.total)}</td>`;
-      html += '</tr>';
+      totalRow = {...r};
     }
   }
 
-  html += '</tbody></table></div>';
-  el.innerHTML = html;
+  // 패널 전체를 흰 배경으로
+  el.style.background = '#fff';
+  el.style.color = '#111';
+  el.style.borderRadius = '0 0 12px 12px';
+
+  // 총합계 고정 바 (상단)
+  const totalHtml = totalRow ? `
+    <div style="background:#1e40af;color:#fff;padding:10px 16px;display:grid;
+      grid-template-columns:310px 80px 1fr 1fr 1fr;gap:0;font-weight:700;font-size:15px;
+      border-bottom:2px solid #1e3a8a;position:sticky;top:0;z-index:10">
+      <div>총합계</div>
+      <div style="text-align:right;font-family:var(--mo)">${fmt(totalRow.cnt)}</div>
+      <div style="text-align:right;font-family:var(--mo);padding-right:12px">${fmt(totalRow.amt)}</div>
+      <div style="text-align:right;font-family:var(--mo);padding-right:12px">${fmt(totalRow.cost)}</div>
+      <div style="text-align:right;font-family:var(--mo);padding-right:12px">${fmt(totalRow.total)}</div>
+    </div>` : '';
+
+  // 테이블
+  let tableHtml = '<div style="overflow-x:auto">';
+  tableHtml += '<table style="font-size:14px;width:100%;border-collapse:collapse">';
+  tableHtml += '<thead><tr style="background:#1e40af;color:#fff;position:sticky;top:0">';
+  tableHtml += '<th style="min-width:130px;padding:10px 12px;text-align:left;font-size:13px">매입담당부서</th>';
+  tableHtml += '<th style="min-width:180px;padding:10px 12px;text-align:left;font-size:13px">소유구분</th>';
+  tableHtml += '<th style="text-align:right;min-width:70px;padding:10px 12px;font-size:13px">대수</th>';
+  tableHtml += '<th style="text-align:right;min-width:150px;padding:10px 12px;font-size:13px">매입가(공급가)</th>';
+  tableHtml += '<th style="text-align:right;min-width:150px;padding:10px 12px;font-size:13px">총부대비(공급가)</th>';
+  tableHtml += '<th style="text-align:right;min-width:150px;padding:10px 12px;font-size:13px">합계(공급가)</th>';
+  tableHtml += '</tr></thead><tbody>';
+
+  groups.forEach((g, gi) => {
+    // 팀별 간격 (첫 번째 팀 제외)
+    if (gi > 0) {
+      tableHtml += '<tr><td colspan="6" style="padding:5px;background:#f0f4ff;border:none"></td></tr>';
+    }
+    // detail 행
+    g.details.forEach((d, i) => {
+      const isFirst = i === 0;
+      const rowBg = isFirst ? '#eff6ff' : '#fff';
+      tableHtml += `<tr style="background:${rowBg};border-bottom:1px solid #e5e7eb">`;
+      tableHtml += `<td style="padding:9px 12px;font-weight:${isFirst?'700':'400'};color:${isFirst?'#1e40af':'#333'};font-size:${isFirst?'14':'13'}px">${isFirst ? g.dept : ''}</td>`;
+      tableHtml += `<td style="padding:9px 12px 9px 24px;color:#111;font-size:14px">${d.owner}</td>`;
+      tableHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cnt)}</td>`;
+      tableHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.amt)}</td>`;
+      tableHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cost)}</td>`;
+      tableHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.total)}</td>`;
+      tableHtml += '</tr>';
+    });
+    // 소계 행
+    tableHtml += `<tr style="background:#dbeafe;border-top:1px solid #93c5fd;border-bottom:1px solid #93c5fd">`;
+    tableHtml += `<td colspan="2" style="padding:9px 12px;font-weight:700;color:#1e40af;font-size:14px">${g.dept} 합계</td>`;
+    tableHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cnt)}</td>`;
+    tableHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.amt)}</td>`;
+    tableHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cost)}</td>`;
+    tableHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.total)}</td>`;
+    tableHtml += '</tr>';
+  });
+
+  tableHtml += '</tbody></table></div>';
+
+  el.innerHTML = totalHtml + tableHtml;
 }
 
 // ══ 토스트 ═══════════════════════════════════════
