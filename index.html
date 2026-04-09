@@ -265,8 +265,8 @@ select.fi option{background:var(--bg)}
 
     <!-- 현재 재고 -->
     <div class="page" id="page-inventory">
-      <div class="panel" style="background:#fff;border-color:#e5e7eb">
-        <div class="ph" style="background:#fff;border-color:#e5e7eb">
+      <div class="panel" style="background:#fff;border-color:#e5e7eb;overflow:visible">
+        <div class="ph" style="background:#fff;border-color:#e5e7eb;position:sticky;top:0;z-index:20;border-radius:12px 12px 0 0">
           <span class="ph-title" style="color:#111;font-size:15px">📦 현재 재고현황</span>
           <span class="sync-info" id="invSyncInfo" style="color:#555"></span>
         </div>
@@ -1309,7 +1309,7 @@ function renderInventory() {
   const TOT_STYLE = 'padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af';
 
   const stickyHtml = `
-    <div style="position:sticky;top:0;z-index:10;background:#fff">
+    <div style="position:sticky;top:44px;z-index:10;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.08)">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <colgroup>
           <col style="min-width:130px">
