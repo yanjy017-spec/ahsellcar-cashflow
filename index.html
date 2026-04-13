@@ -268,7 +268,6 @@ select.fi option{background:var(--bg)}
         <div class="tw" style="max-height:calc(100vh - 255px);overflow-y:auto">
           <table><thead><tr>
             <th>전표번호</th><th>부서</th><th>거래처</th>
-            <th>결제수단</th>
             <th style="text-align:right">금액(원)</th><th>은행</th><th>계좌번호</th>
             <th>지출예정일</th><th>결재상태</th><th>적요</th>
           </tr></thead><tbody id="vBody"></tbody></table>
@@ -457,11 +456,10 @@ async function fetchGyulTab(ym) {
       deptNm:         r['결의부서명']||'',
       gyulDate:       r['결의일자']||'',
       gyulType1Code:  r['결의구분1']||'',
-      payWayCode:     r['결제수단']||'',
       payDate:        '',  // 기본 빈칸 (지출예정일 탭에서만 로드)
       approvalStatus: r['결재상태']||'',
       gyulAmt:        r['전표금액(원)']||'0',
-      bankCode:       r['은행']||'',
+      bankCode:       r['은행']||'',   // Sheets의 '은행' 컬럼은 이미 한글명
       bankAccount:    r['계좌번호']||'',
       custNm:         r['거래처명']||'',
       remarksCodeNm:  r['적요']||'',
@@ -553,10 +551,7 @@ async function loadFromSheets(manual=false) {
             r.payDate    = payDateMap[r.slipNo].payDate    || r.payDate;
             r.payWayCode = payDateMap[r.slipNo].payWayCode || r.payWayCode;
           }
-          // 결제수단 기본값: '계좌이체'
-          if (!r.payWayCode || r.payWayCode === '02' || r.payWayCode === '2') {
-            r.payWayCode = '계좌이체';
-          }
+
           allVouchers.push(r);
         }
       }
@@ -970,8 +965,6 @@ function renderVoucher(){
   document.getElementById('vCnt').textContent=rows.length+'건';
   document.getElementById('vTot').textContent='합계: '+fmt(tot)+'원';
 
-  const PAY_WAYS = ['계좌이체','자동이체','급여이체','대량이체','지로납부','현금지급','경매장자동이체','경매장대량이체'];
-
   document.getElementById('vBody').innerHTML=rows.length?rows.map(r=>{
     const hasPayDate = !!r.payDate;
     const isComplete = r.approvalStatus === '결재완료';
@@ -989,19 +982,10 @@ function renderVoucher(){
       data-slip="${r.slipNo}" data-field="payDate"
     >`;
 
-    // 결제수단 드롭다운
-    const pwCode = r.payWayCode || '계좌이체';
-    const payWayCell = `<select
-      style="background:var(--s2);border:1px solid var(--bd2);color:var(--tx);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--fn);outline:none;cursor:pointer"
-      onchange="markVChange('${r.slipNo}','payWayCode',this.value)"
-      data-slip="${r.slipNo}" data-field="payWayCode"
-    >${PAY_WAYS.map(w=>`<option value="${w}" ${pwCode===w?'selected':''}>${w}</option>`).join('')}</select>`;
-
     return `<tr style="${rowStyle}">
       <td class="mono" style="font-size:11px;color:var(--acc)">${r.slipNo}</td>
       <td style="font-size:12px;color:var(--tx2)">${r.deptNm}</td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.custNm}">${r.custNm}</td>
-      <td>${payWayCell}</td>
       <td class="amt" style="color:#fff;font-weight:700">${fmt(r.gyulAmt)}</td>
       <td style="font-size:11px">${r.bankCode||''}</td>
       <td class="mono" style="font-size:10.5px;color:#fff;font-weight:600">${r.bankAccount||''}</td>
@@ -1010,7 +994,7 @@ function renderVoucher(){
       <td style="font-size:11px;color:#fff;font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.remarksCodeNm||''}">${r.remarksCodeNm||''}</td>
     </tr>`;
   }).join('')
-  :'<tr><td colspan="10" style="text-align:center;color:var(--tx3);padding:40px">해당 조건의 데이터 없음</td></tr>';
+  :'<tr><td colspan="9" style="text-align:center;color:var(--tx3);padding:40px">해당 조건의 데이터 없음</td></tr>';
 }
 
 async function saveVoucherChanges() {
@@ -1022,20 +1006,19 @@ async function saveVoucherChanges() {
     const v = S.vouchers.find(x=>x.slipNo===slipNo) || {};
     return {
       slipNo,
-      payDate:        changes.payDate    ?? v.payDate    ?? '',
-      payWayCode:     changes.payWayCode ?? v.payWayCode ?? '계좌이체',
-      // 부가정보 (Sheets에 함께 저장)
-      remarksCodeNm:  v.remarksCodeNm  || '',
-      gyulAmt:        v.gyulAmt        || '',
-      custNm:         v.custNm         || '',
-      bankAccount:    v.bankAccount    || '',
+      payDate:       changes.payDate ?? v.payDate ?? '',
+      payWayCode:    v.payWayCode || '',  // 결제수단은 읽기용(표시 안함)
+      remarksCodeNm: v.remarksCodeNm  || '',
+      gyulAmt:       v.gyulAmt        || '',
+      custNm:        v.custNm         || '',
+      bankAccount:   v.bankAccount    || '',
     };
   });
 
   // 로컬 상태에도 반영
   items.forEach(item => {
     const v = S.vouchers.find(x=>x.slipNo===item.slipNo);
-    if (v) { v.payDate=item.payDate; v.payWayCode=item.payWayCode; }
+    if (v) { v.payDate = item.payDate; }
   });
   saveState();
 
@@ -1411,8 +1394,8 @@ function exportXlsx(){
   // 나머지는 결의전표 엑셀
   const mv=monthVouchers();
   let rows=curStatus==='all'?mv:mv.filter(r=>r.approvalStatus===curStatus);
-  const h=['전표번호','부서','거래처','결제수단','금액','은행','계좌번호','지출예정일','결재상태','비고'];
-  const ks=['slipNo','deptNm','custNm','payWayCode','gyulAmt','bankCode','bankAccount','payDate','approvalStatus','descr'];
+  const h=['전표번호','부서','거래처','금액','은행','계좌번호','지출예정일','결재상태','비고'];
+  const ks=['slipNo','deptNm','custNm','gyulAmt','bankCode','bankAccount','payDate','approvalStatus','descr'];
   const data=[h,...rows.map(r=>ks.map(k=>r[k]||''))];
   const ws=XLSX.utils.aoa_to_sheet(data);const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'결의전표');
