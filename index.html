@@ -380,7 +380,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbzmUWPtmqt4E2fqIHbnk0T70yQwsJER2iV-SdpkJS7GzSYdCs1FpDJX2t06CCdeXDZM/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -1035,6 +1035,8 @@ async function saveVoucherChanges() {
     document.getElementById('vChangeCnt').style.display='none';
     toast(`${cnt}건 저장됨`,'s');
     renderVoucher();
+    // 지출예정일 변경 후 일일자금계획도 자동 저장
+    autoSaveDailyPlan();
   }
 }
 
@@ -1247,6 +1249,41 @@ async function saveDailyPlanToSheets() {
   document.getElementById('savePlanBtn').disabled=false;
   toast(ok?`일일자금계획 저장됨 (${planDate})`:'저장 실패',ok?'s':'e');
 }
+// 지출예정일 저장 후 해당 날짜들의 자금계획 자동 저장
+async function autoSaveDailyPlan() {
+  const {groups} = buildFundGroups();
+  if (!Object.keys(groups).length) return;
+
+  function isAuction(v) {
+    return (v.deptNm||'').includes('경매') || (v.remarksCodeNm||'').includes('경매');
+  }
+
+  // 날짜별로 저장
+  for (const dateKey of Object.keys(groups).sort()) {
+    const g = groups[dateKey];
+    const allRows = [...g.erp, ...g.auto.map(a => ({
+      slipNo:`AUTO-${a.id}`, custNm:a.name, deptNm:a.vendor||'',
+      gyulAmt:a.amount, payWayCode:a.method, bankCode:'', bankAccount:'',
+      remarksCodeNm:a.method,
+    }))];
+    const toSecRows = rows => rows.map(v => ({
+      slipNo:v.slipNo||'', custNm:v.custNm||'',
+      amt:parseAmt(v.gyulAmt||v.amount||0), descr:v.remarksCodeNm||'',
+      payWayCode:v.payWayCode||'', bankCode:v.bankCode||'',
+      bankAccount:v.bankAccount||'', payDate:dateKey, note:v.deptNm||'',
+    }));
+    const sections = [];
+    const gen = allRows.filter(v => !isAuction(v));
+    const auc = allRows.filter(v =>  isAuction(v));
+    if (gen.length) sections.push({title:`${dateKey} 일반지출`,       rows:toSecRows(gen)});
+    if (auc.length) sections.push({title:`${dateKey} 경매장 일반지출`, rows:toSecRows(auc)});
+    if (sections.length) {
+      await saveToSheets('saveDailyPlan', {planDate: dateKey, sections});
+    }
+  }
+  toast('일일자금계획 자동 저장 완료', 's');
+}
+
 // ══ Apps Script 저장 ═════════════════════════════
 async function saveToSheets(action, data) {
   try {
