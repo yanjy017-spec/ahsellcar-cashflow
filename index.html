@@ -122,6 +122,38 @@ select.fi option{background:var(--bg)}
 .toast.s{border-left:3px solid var(--grn)}.toast.e{border-left:3px solid var(--red)}.toast.i{border-left:3px solid var(--acc)}
 @keyframes tIn{from{transform:translateX(12px);opacity:0}to{transform:translateX(0);opacity:1}}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+
+/* 일일자금계획 테이블 뷰 */
+.plan-section{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;margin-bottom:12px}
+.plan-sec-head{padding:9px 14px;background:var(--s2);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.plan-sec-title{font-size:12px;font-weight:700;color:var(--tx)}
+.plan-sec-total{font-family:var(--mo);font-size:13px;font-weight:700;color:var(--grn)}
+.plan-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.plan-tbl thead th{background:var(--s2);color:var(--tx3);font-size:10px;font-weight:700;letter-spacing:.4px;padding:7px 10px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+.plan-tbl tbody tr{border-bottom:1px solid var(--bd)}
+.plan-tbl tbody tr:hover{background:var(--s2)}
+.plan-tbl tbody td{padding:7px 10px;vertical-align:middle}
+.plan-subtotal td{background:rgba(46,204,122,.06);font-weight:700;color:var(--grn)}
+.plan-hl{background:rgba(240,160,64,.08)!important}
+/* 인쇄 */
+@media print {
+  body{background:#fff!important;color:#111!important}
+  .side,.topbar,.month-tabs,.fbar,.tfoot,.btn,.nav-item,#toasts,.loading-overlay,
+  #viewModeCard,#viewModeTable,#savePlanBtn{display:none!important}
+  .app{display:block!important}.body{overflow:visible!important}
+  .content{overflow:visible!important;padding:0!important}
+  .page{display:block!important}
+  #page-fund{display:block!important}
+  #fpGrid{display:none!important}
+  #fpTableView{display:block!important}
+  .plan-section{border:1px solid #ccc!important;background:#fff!important;page-break-inside:avoid}
+  .plan-sec-head{background:#f0f4ff!important;color:#111!important}
+  .plan-sec-title,.plan-sec-total{color:#111!important}
+  .plan-tbl thead th{background:#e8edf8!important;color:#333!important;border-bottom:2px solid #999!important}
+  .plan-tbl tbody td{color:#111!important}
+  .plan-subtotal td{background:#dbeafe!important;color:#1e40af!important}
+  .plan-hl{background:#fffbeb!important}
+}
 </style>
 </head>
 <body>
@@ -182,6 +214,12 @@ select.fi option{background:var(--bg)}
     </div>
   </div>
   <div class="month-tabs" id="monthTabs"></div>
+  <div id="monthViewToggle" style="display:none;padding:4px 18px;background:var(--s1);border-bottom:1px solid var(--bd);gap:4px;align-items:center">
+    <span style="font-size:10px;color:var(--tx3);font-weight:700;letter-spacing:.4px;margin-right:4px">기준</span>
+    <button class="fc on" id="mvGyul" onclick="setMonthViewMode('gyul')" style="font-size:10.5px;padding:2px 9px">결의월</button>
+    <button class="fc" id="mvPay"  onclick="setMonthViewMode('pay')"  style="font-size:10.5px;padding:2px 9px">지출월</button>
+    <span style="font-size:10px;color:var(--tx3);margin-left:8px" id="monthViewDesc">결의일자 기준으로 표시</span>
+  </div>
   <div class="content">
 
     <!-- 대시보드 -->
@@ -241,7 +279,25 @@ select.fi option{background:var(--bg)}
 
     <!-- 자금계획 -->
     <div class="page" id="page-fund">
-      <div class="fp-grid" id="fpGrid"></div>
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph" style="flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="flbl">지출일 선택</span>
+            <div class="fchips" id="fundDateChips" style="flex-wrap:wrap;gap:4px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+            <span style="font-size:11px;color:var(--tx3)" id="fundPlanDateLabel"></span>
+            <button class="btn btn-ghost btn-sm" onclick="saveDailyPlanToSheets()" id="savePlanBtn">☁ Sheets 저장</button>
+            <button class="btn btn-ghost btn-sm" onclick="printDailyPlan()">🖨 인쇄</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="fc on" id="viewModeCard" onclick="setFundViewMode('card')">카드 보기</button>
+        <button class="fc" id="viewModeTable" onclick="setFundViewMode('table')">지급내역 형식</button>
+      </div>
+      <div id="fpGrid" class="fp-grid"></div>
+      <div id="fpTableView" style="display:none"></div>
     </div>
 
     <!-- 자동이체 -->
@@ -325,7 +381,8 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbykHwt-2kUMo7q62Y8y24osDBBPBIrdsjqE_Izug9y-88bFnHmhIdqFrPTHzqnuEExK-A/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyAnhgxBvuAJB_xO2xNfE3DjELGwOz88P7-65WIJx1uh-49a4COiGAAnYq8zfrMjZ0SuA/exec';
+// ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
 const SK = 'ahsc_v3';
@@ -621,23 +678,19 @@ async function initApp() {
   const today=new Date();
   curMonth=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
 
-  // 재고 전용 모드
   if (sessionStorage.getItem('inv_only') === '1') {
-    // 재고 외 메뉴 숨김
     ['nav-dash','nav-voucher','nav-fund','nav-auto','nav-settings'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
-    // 월탭 숨김
     document.getElementById('monthTabs').style.display = 'none';
-    // 재고 페이지로 이동
     goPage('inventory', document.getElementById('nav-inventory'));
     await loadFromSheets();
     setInterval(()=>loadFromSheets(), 30*60*1000);
     return;
   }
 
-  // 일반 모드
+  const toggleEl = document.getElementById('monthViewToggle');
+  if (toggleEl) toggleEl.style.display = 'none';
   document.getElementById('monthTabs').style.display = '';
   if (S.vouchers.length) {
     showLoading(false);
@@ -649,11 +702,19 @@ async function initApp() {
 }
 
 // ══ 월 탭 ════════════════════════════════════════
+let monthViewMode = 'gyul'; // 'gyul'=결의월, 'pay'=지출월
+
 function getMonths() {
-  const ms=new Set(S.vouchers.map(v=>(v.gyulDate||'').slice(0,6)).filter(Boolean));
-  // "20260301" → "2026-03" 변환
-  const formatted=[...ms].map(m=>m.length===6?`${m.slice(0,4)}-${m.slice(4,6)}`:m);
-  return [...new Set(formatted)].sort().reverse();
+  const ms = new Set();
+  S.vouchers.forEach(v => {
+    const d = (v.gyulDate||'').replace(/\D/g,'');
+    if (d.length >= 6) ms.add(`${d.slice(0,4)}-${d.slice(4,6)}`);
+    if (v.payDate) {
+      const pd = String(v.payDate).replace(/\D/g,'');
+      if (pd.length >= 6) ms.add(`${pd.slice(0,4)}-${pd.slice(4,6)}`);
+    }
+  });
+  return [...ms].sort().reverse();
 }
 function buildMonthTabs() {
   const months=getMonths();
@@ -669,17 +730,20 @@ function buildMonthTabs() {
 function setMonth(m){curMonth=m;buildMonthTabs();renderAll();}
 function monthVouchers() {
   return S.vouchers.filter(v=>{
-    const d=v.gyulDate||'';
-    // "20260301" → "2026-03"
-    const ym=d.length>=6?`${d.slice(0,4)}-${d.slice(4,6)}`:'';
-    return ym===curMonth;
+    if (monthViewMode === 'pay') {
+      const pd = String(v.payDate||'').replace(/\D/g,'');
+      if (pd.length >= 6) return `${pd.slice(0,4)}-${pd.slice(4,6)}` === curMonth;
+      const d = (v.gyulDate||'').replace(/\D/g,'');
+      return d.length >= 6 && `${d.slice(0,4)}-${d.slice(4,6)}` === curMonth;
+    }
+    const d = (v.gyulDate||'').replace(/\D/g,'');
+    return d.length >= 6 && `${d.slice(0,4)}-${d.slice(4,6)}` === curMonth;
   });
 }
 
 // ══ 네비 ═════════════════════════════════════════
 const TITLES={dash:'대시보드',voucher:'결의전표관리',fund:'일일자금계획',auto:'자동이체 관리',inventory:'현재 재고',settings:'설정'};
 
-// 월 탭이 필요한 페이지
 const PAGES_WITH_MONTH_TAB = new Set(['dash','voucher','fund']);
 
 function goPage(name,el){
@@ -690,13 +754,19 @@ function goPage(name,el){
   document.getElementById('topTitle').textContent=TITLES[name]||name;
   curPage=name;
 
-  // 월 탭: 대시보드/결의전표/자금계획만 표시
   const monthTabsEl = document.getElementById('monthTabs');
-  if (PAGES_WITH_MONTH_TAB.has(name)) {
-    monthTabsEl.style.display = '';
-  } else {
-    monthTabsEl.style.display = 'none';
-  }
+  const toggleEl    = document.getElementById('monthViewToggle');
+  monthTabsEl.style.display = PAGES_WITH_MONTH_TAB.has(name) ? '' : 'none';
+  if (toggleEl) toggleEl.style.display = (name==='voucher'||name==='fund') ? 'flex' : 'none';
+}
+
+function setMonthViewMode(mode) {
+  monthViewMode = mode;
+  document.getElementById('mvGyul').classList.toggle('on', mode==='gyul');
+  document.getElementById('mvPay').classList.toggle('on',  mode==='pay');
+  document.getElementById('monthViewDesc').textContent =
+    mode==='gyul' ? '결의일자 기준으로 표시' : '지출예정일 기준으로 표시';
+  buildMonthTabs(); renderAll();
 }
 
 // ══ 헬퍼 ═════════════════════════════════════════
@@ -986,6 +1056,18 @@ async function saveVoucherChanges() {
 }
 
 // ══ 자금계획 ══════════════════════════════════════
+let fundViewMode     = 'card';
+let selectedFundDate = null;
+
+function setFundViewMode(mode) {
+  fundViewMode = mode;
+  document.getElementById('viewModeCard').classList.toggle('on',  mode==='card');
+  document.getElementById('viewModeTable').classList.toggle('on', mode==='table');
+  document.getElementById('fpGrid').style.display       = mode==='card'  ? '' : 'none';
+  document.getElementById('fpTableView').style.display  = mode==='table' ? '' : 'none';
+  renderFund();
+}
+
 function renderBal(){
   const _balGrid=document.getElementById('balGrid');
   if(!_balGrid) return;
@@ -998,53 +1080,85 @@ function saveBal(){
   ['보통예금','사용제한예금','현금','상품권'].forEach(k=>{const el=document.getElementById('bal-'+k);S.balances[k]=parseAmt(el?.value||0);});
   saveState();renderFund();toast('잔액 저장됨','s');
 }
-function renderFund(){
-  const mv=monthVouchers(); // 현재 선택된 월만
-  const done=mv.filter(v=>v.approvalStatus==='결재완료');
-  const pend=mv.filter(v=>v.approvalStatus==='결재미상신');
-  const groups={},pendGroups={};
 
-  done.forEach(v=>{
-    const fd=assignFundDay(v.payDate);if(!fd)return;
-    const k=dk(fd);
-    if(!groups[k])groups[k]={erp:[],auto:[]};
+function buildFundGroups() {
+  const mv   = monthVouchers().filter(v => parseAmt(v.gyulAmt) > 0);
+  const done = mv.filter(v => v.approvalStatus === '결재완료');
+  const pend = mv.filter(v => v.approvalStatus === '결재미상신');
+  const groups = {}, pendGroups = {};
+  const [cy, cm] = curMonth.split('-');
+
+  done.forEach(v => {
+    const fd = assignFundDay(v.payDate); if (!fd) return;
+    const k  = dk(fd);
+    if (!groups[k]) groups[k] = {erp:[], auto:[]};
     groups[k].erp.push(v);
   });
-
-  // 자동이체 - 현재 월 기준으로만 배정
-  const [cy,cm]=curMonth.split('-');
-  S.autoDebits.forEach(a=>{
-    const pd=`${cy}${cm}${String(a.day).padStart(2,'0')}`;
-    const fd=assignFundDay(pd);if(!fd)return;
-    // 배정된 자금일이 현재 월인 경우만 표시
-    if(dk(fd).startsWith(curMonth)){
-      const k=dk(fd);
-      if(!groups[k])groups[k]={erp:[],auto:[]};
+  S.autoDebits.forEach(a => {
+    const pd = `${cy}${cm}${String(a.day).padStart(2,'0')}`;
+    const fd = assignFundDay(pd); if (!fd) return;
+    if (dk(fd).startsWith(curMonth)) {
+      const k = dk(fd);
+      if (!groups[k]) groups[k] = {erp:[], auto:[]};
       groups[k].auto.push(a);
     }
   });
-
-  pend.forEach(v=>{
-    const fd=assignFundDay(v.payDate);if(!fd)return;
-    const k=dk(fd);
-    if(!pendGroups[k])pendGroups[k]=[];
+  pend.forEach(v => {
+    const fd = assignFundDay(v.payDate); if (!fd) return;
+    const k  = dk(fd);
+    if (!pendGroups[k]) pendGroups[k] = [];
     pendGroups[k].push(v);
   });
+  return {groups, pendGroups};
+}
 
-  const nextK=dk(nextFundDay());
-  const allKeys=[...new Set([...Object.keys(groups),...Object.keys(pendGroups)])].sort();
-  const grid=document.getElementById('fpGrid');
+function renderFundDateChips() {
+  const {groups} = buildFundGroups();
+  const allKeys  = Object.keys(groups).sort();
+  const el = document.getElementById('fundDateChips');
+  if (!el) return;
+  const chips = [
+    `<span class="fc${!selectedFundDate?' on':''}" onclick="selectFundDate(null)" style="font-size:11px;padding:3px 10px">전체</span>`,
+    ...allKeys.map(k => {
+      const total = groups[k].erp.reduce((s,v)=>s+parseAmt(v.gyulAmt),0)
+                  + groups[k].auto.reduce((s,a)=>s+parseAmt(a.amount),0);
+      return `<span class="fc${k===selectedFundDate?' on':''}" onclick="selectFundDate('${k}')" style="font-size:11px;padding:3px 10px">
+        ${k.slice(5)} <span style="font-size:10px;opacity:.7">${(total/10000).toFixed(0)}만</span></span>`;
+    }),
+  ];
+  el.innerHTML = chips.join('');
+  const lbl = document.getElementById('fundPlanDateLabel');
+  if (lbl) lbl.textContent = selectedFundDate ? `선택일: ${selectedFundDate}` : '';
+}
 
-  if(!allKeys.length){
-    grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--tx3)">이 월의 자금계획 데이터가 없습니다</div>';
+function selectFundDate(date) {
+  selectedFundDate = date;
+  renderFundDateChips();
+  renderFund();
+}
+
+function renderFund() {
+  renderFundDateChips();
+  if (fundViewMode === 'card') renderFundCard();
+  else renderFundTable();
+}
+
+function renderFundCard() {
+  const {groups, pendGroups} = buildFundGroups();
+  const nextK   = dk(nextFundDay());
+  const allKeys = [...new Set([...Object.keys(groups),...Object.keys(pendGroups)])].sort()
+    .filter(k => !selectedFundDate || k === selectedFundDate);
+  const grid = document.getElementById('fpGrid');
+
+  if (!allKeys.length) {
+    grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--tx3)">이 월의 자금계획 데이터가 없습니다</div>';
     return;
   }
-
-  grid.innerHTML=allKeys.map(k=>{
-    const g=groups[k]||{erp:[],auto:[]};const pg=pendGroups[k]||[];
+  grid.innerHTML = allKeys.map(k => {
+    const g=groups[k]||{erp:[],auto:[]}, pg=pendGroups[k]||[];
     const erpAmt=g.erp.reduce((s,v)=>s+parseAmt(v.gyulAmt),0);
     const autoAmt=g.auto.reduce((s,a)=>s+parseAmt(a.amount),0);
-    const total=erpAmt+autoAmt,pendAmt=pg.reduce((s,v)=>s+parseAmt(v.gyulAmt),0),isNext=k===nextK;
+    const total=erpAmt+autoAmt, pendAmt=pg.reduce((s,v)=>s+parseAmt(v.gyulAmt),0), isNext=k===nextK;
     const erpRows=g.erp.map(v=>`<div class="fp-row"><span class="fp-tag tag-erp">ERP</span><div class="fp-info"><div class="fp-cust">${v.custNm}</div><div class="fp-meta">${v.deptNm} · ${v.payWayCode||''} · ${v.bankCode||''} ${v.bankAccount||''}</div></div><div class="fp-amt">${fmt(v.gyulAmt)}</div></div>`).join('');
     const autoRows=g.auto.map(a=>`<div class="fp-row"><span class="fp-tag tag-auto">자동</span><div class="fp-info"><div class="fp-cust">${a.name}</div><div class="fp-meta">${a.vendor||''} · ${a.method}</div></div><div class="fp-amt">${fmt(a.amount)}</div></div>`).join('');
     const pendSec=pg.length?`<div style="background:rgba(240,160,64,.05);border-top:1px solid var(--bd)"><div style="padding:6px 14px 4px;font-size:10px;color:var(--amb);font-weight:700">⚠ 결재미상신 (합계 미포함)</div>${pg.map(v=>`<div class="fp-row"><span class="fp-tag tag-pend">대기</span><div class="fp-info"><div class="fp-cust">${v.custNm}</div><div class="fp-meta">${v.deptNm}</div></div><div class="fp-amt fp-pend-amt">${fmt(v.gyulAmt)}</div></div>`).join('')}<div style="padding:6px 14px;text-align:right;font-size:11px;color:var(--amb);font-weight:600">미상신 소계: ${fmt(pendAmt)}원</div></div>`:'';
@@ -1056,6 +1170,100 @@ function renderFund(){
   }).join('');
 }
 
+function renderFundTable() {
+  const {groups} = buildFundGroups();
+  const targetKeys = Object.keys(groups).sort().filter(k => !selectedFundDate || k === selectedFundDate);
+  const el = document.getElementById('fpTableView');
+  if (!el) return;
+  if (!targetKeys.length) { el.innerHTML='<div style="padding:40px;text-align:center;color:var(--tx3)">지급내역 데이터 없음</div>'; return; }
+
+  function isAuction(v) { return (v.deptNm||'').includes('경매') || (v.remarksCodeNm||'').includes('경매'); }
+
+  let html2='', grandTotal=0;
+  targetKeys.forEach(dateKey => {
+    const g = groups[dateKey];
+    const allRows = [...g.erp, ...g.auto.map(a=>({
+      slipNo:`AUTO-${a.id}`,custNm:a.name,deptNm:a.vendor||'',gyulAmt:a.amount,
+      payWayCode:a.method,bankCode:'',bankAccount:'',approvalStatus:'자동이체',
+      remarksCodeNm:a.method,_isAuto:true,
+    }))];
+    const general=allRows.filter(v=>!isAuction(v)), auction=allRows.filter(v=>isAuction(v));
+    const sections=[];
+    if(general.length) sections.push({title:'일반지출',rows:general});
+    if(auction.length) sections.push({title:'경매장 일반지출',rows:auction});
+
+    sections.forEach(sec => {
+      const secTotal=sec.rows.reduce((s,r)=>s+parseAmt(r.gyulAmt||r.amount||0),0);
+      grandTotal+=secTotal;
+      html2+=`<div class="plan-section">
+        <div class="plan-sec-head">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="plan-sec-title">${dateKey} · ${sec.title}</span>
+            <span style="font-size:10px;color:var(--tx3)">${sec.rows.length}건</span>
+          </div>
+          <span class="plan-sec-total">${fmt(secTotal)} 원</span>
+        </div>
+        <table class="plan-tbl"><thead><tr>
+          <th style="width:32px">순번</th><th>지출결의전표</th><th>적요</th><th>금액</th>
+          <th>거래처명</th><th>특이사항</th><th>비고</th><th>지출요청자</th><th>은행</th><th>계좌번호</th>
+        </tr></thead><tbody>`;
+      sec.rows.forEach((v,i) => {
+        const hl = v.approvalStatus==='결재완료'&&v.payDate?' plan-hl':'';
+        const slipDisp = v._isAuto
+          ? `<span style="font-size:10px;color:var(--grn)">자동이체</span>`
+          : `<span class="mono" style="font-size:10.5px;color:var(--acc);background:rgba(240,160,64,.15);padding:1px 5px;border-radius:3px">${v.slipNo}</span>`;
+        html2+=`<tr class="${hl}">
+          <td class="ctr" style="color:var(--tx3)">${i+1}</td>
+          <td>${slipDisp}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.remarksCodeNm||''}</td>
+          <td class="amt" style="font-weight:700">${fmt(v.gyulAmt||v.amount||0)}</td>
+          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.custNm||''}</td>
+          <td style="font-size:10px;color:var(--tx3)">${v.deptNm||''}</td>
+          <td></td><td style="font-size:11px;color:var(--tx3)">${v._isAuto?'시스템':''}</td>
+          <td style="font-size:11px">${v.bankCode||''}</td>
+          <td class="mono" style="font-size:10.5px">${v.bankAccount||''}</td>
+        </tr>`;
+      });
+      html2+=`</tbody><tfoot><tr class="plan-subtotal">
+        <td colspan="3" style="text-align:right;padding:8px 10px">${sec.title} 소계</td>
+        <td class="amt" style="padding:8px 10px">${fmt(secTotal)}</td>
+        <td colspan="6"></td></tr></tfoot></table></div>`;
+    });
+  });
+  html2+=`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r2);padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:13px;font-weight:700">총 합계 (${selectedFundDate||curMonth})</span>
+    <span style="font-family:var(--mo);font-size:18px;font-weight:700;color:var(--grn)">${fmt(grandTotal)} 원</span>
+  </div>`;
+  el.innerHTML = html2;
+}
+
+function printDailyPlan() {
+  setFundViewMode('table');
+  setTimeout(() => window.print(), 300);
+}
+
+async function saveDailyPlanToSheets() {
+  const {groups} = buildFundGroups();
+  const targetKeys = Object.keys(groups).sort().filter(k => !selectedFundDate || k === selectedFundDate);
+  if (!targetKeys.length) { toast('저장할 데이터 없음','i'); return; }
+  const planDate = selectedFundDate || curMonth;
+  function isAuction(v){ return (v.deptNm||'').includes('경매')||(v.remarksCodeNm||'').includes('경매'); }
+  const sections=[];
+  targetKeys.forEach(dateKey => {
+    const g=groups[dateKey];
+    const allRows=[...g.erp,...g.auto.map(a=>({slipNo:`AUTO-${a.id}`,custNm:a.name,deptNm:a.vendor||'',gyulAmt:a.amount,payWayCode:a.method,bankCode:'',bankAccount:'',remarksCodeNm:a.method}))];
+    const toRows=rows=>rows.map(v=>({slipNo:v.slipNo||'',custNm:v.custNm||'',amt:parseAmt(v.gyulAmt||v.amount||0),descr:v.remarksCodeNm||'',payWayCode:v.payWayCode||'',bankCode:v.bankCode||'',bankAccount:v.bankAccount||'',payDate:dateKey,note:v.deptNm||''}));
+    const gen=allRows.filter(v=>!isAuction(v)), auc=allRows.filter(v=>isAuction(v));
+    if(gen.length) sections.push({title:`${dateKey} 일반지출`,rows:toRows(gen)});
+    if(auc.length) sections.push({title:`${dateKey} 경매장 일반지출`,rows:toRows(auc)});
+  });
+  document.getElementById('savePlanBtn').textContent='저장 중...';
+  document.getElementById('savePlanBtn').disabled=true;
+  const ok=await saveToSheets('saveDailyPlan',{planDate,sections});
+  document.getElementById('savePlanBtn').textContent='☁ Sheets 저장';
+  document.getElementById('savePlanBtn').disabled=false;
+  toast(ok?`일일자금계획 저장됨 (${planDate})`:'저장 실패',ok?'s':'e');
+}
 // ══ Apps Script 저장 ═════════════════════════════
 async function saveToSheets(action, data) {
   try {
@@ -1286,7 +1494,7 @@ function renderInventory() {
   // 그룹별 묶기 + 원가 0원 제외 + 소계/총합계 재계산
   const groups = [];
   let pendingDetails = [];
-  let grandCnt = 0, grandAmt = 0, grandCost = 0, grandTotal = 0;
+  let grandCnt=0, grandAmt=0, grandCost=0, grandTotal=0;
   let totalRow = null;
 
   for (const r of rows) {
@@ -1294,18 +1502,15 @@ function renderInventory() {
       if (Number(r.total) === 0) continue;
       pendingDetails.push({...r});
     } else if (r.type === 'subtotal') {
-      // 남은 detail 기준으로 소계 재계산
-      const sc = pendingDetails.reduce((s,d) => s + Number(d.cnt),   0);
-      const sa = pendingDetails.reduce((s,d) => s + Number(d.amt),   0);
-      const so = pendingDetails.reduce((s,d) => s + Number(d.cost),  0);
-      const st = pendingDetails.reduce((s,d) => s + Number(d.total), 0);
-      const recalcSub = {...r, cnt: sc, amt: sa, cost: so, total: st};
-      groups.push({ dept: r.dept, details: pendingDetails, sub: recalcSub });
-      grandCnt += sc; grandAmt += sa; grandCost += so; grandTotal += st;
+      const sc=pendingDetails.reduce((s,d)=>s+Number(d.cnt),0);
+      const sa=pendingDetails.reduce((s,d)=>s+Number(d.amt),0);
+      const so=pendingDetails.reduce((s,d)=>s+Number(d.cost),0);
+      const st=pendingDetails.reduce((s,d)=>s+Number(d.total),0);
+      groups.push({dept:r.dept, details:pendingDetails, sub:{...r,cnt:sc,amt:sa,cost:so,total:st}});
+      grandCnt+=sc; grandAmt+=sa; grandCost+=so; grandTotal+=st;
       pendingDetails = [];
     } else if (r.type === 'total') {
-      // 총합계도 재계산값으로 교체
-      totalRow = {...r, cnt: grandCnt, amt: grandAmt, cost: grandCost, total: grandTotal};
+      totalRow = {...r, cnt:grandCnt, amt:grandAmt, cost:grandCost, total:grandTotal};
     }
   }
 
@@ -1313,7 +1518,6 @@ function renderInventory() {
   el.style.color = '#111';
   el.style.borderRadius = '0 0 12px 12px';
 
-  // 고정 헤더 영역 (컬럼명 + 총합계)
   const COL_STYLE = 'padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af';
   const TOT_STYLE = 'padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af';
 
@@ -1321,12 +1525,8 @@ function renderInventory() {
     <div style="position:sticky;top:44px;z-index:10;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.08)">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <colgroup>
-          <col style="min-width:130px">
-          <col style="min-width:180px">
-          <col style="min-width:70px">
-          <col style="min-width:150px">
-          <col style="min-width:150px">
-          <col style="min-width:150px">
+          <col style="min-width:130px"><col style="min-width:180px"><col style="min-width:70px">
+          <col style="min-width:150px"><col style="min-width:150px"><col style="min-width:150px">
         </colgroup>
         <thead>
           <tr>
@@ -1348,18 +1548,15 @@ function renderInventory() {
       </table>
     </div>`;
 
-  // 스크롤 바디
   let bodyHtml = '<div style="overflow-x:auto"><table style="font-size:14px;width:100%;border-collapse:collapse">';
   bodyHtml += '<colgroup><col style="min-width:130px"><col style="min-width:180px"><col style="min-width:70px"><col style="min-width:150px"><col style="min-width:150px"><col style="min-width:150px"></colgroup><tbody>';
 
   groups.forEach((g, gi) => {
-    if (gi > 0) {
-      bodyHtml += '<tr><td colspan="6" style="padding:5px;background:#f0f4ff;border:none"></td></tr>';
-    }
+    if (gi > 0) bodyHtml += '<tr><td colspan="6" style="padding:5px;background:#f0f4ff;border:none"></td></tr>';
     g.details.forEach((d, i) => {
       const isFirst = i === 0;
       bodyHtml += `<tr style="background:${isFirst?'#eff6ff':'#fff'};border-bottom:1px solid #e5e7eb">`;
-      bodyHtml += `<td style="padding:9px 12px;font-weight:${isFirst?'700':'400'};color:${isFirst?'#1e40af':'#333'};font-size:${isFirst?'14':'13'}px">${isFirst ? g.dept : ''}</td>`;
+      bodyHtml += `<td style="padding:9px 12px;font-weight:${isFirst?'700':'400'};color:${isFirst?'#1e40af':'#333'};font-size:${isFirst?'14':'13'}px">${isFirst?g.dept:''}</td>`;
       bodyHtml += `<td style="padding:9px 12px 9px 24px;color:#111;font-size:14px">${d.owner}</td>`;
       bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cnt)}</td>`;
       bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.amt)}</td>`;
@@ -1375,12 +1572,9 @@ function renderInventory() {
     bodyHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.total)}</td>`;
     bodyHtml += '</tr>';
   });
-
   bodyHtml += '</tbody></table></div>';
-
   el.innerHTML = stickyHtml + bodyHtml;
 }
-
 // ══ 토스트 ═══════════════════════════════════════
 function toast(msg,type='i'){
   const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;
