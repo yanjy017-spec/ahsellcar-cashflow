@@ -380,7 +380,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -1231,23 +1231,30 @@ async function saveDailyPlanToSheets() {
   const {groups} = buildFundGroups();
   const targetKeys = Object.keys(groups).sort().filter(k => !selectedFundDate || k === selectedFundDate);
   if (!targetKeys.length) { toast('저장할 데이터 없음','i'); return; }
-  const planDate = selectedFundDate || curMonth;
+
+  document.getElementById('savePlanBtn').textContent='저장 중...';
+  document.getElementById('savePlanBtn').disabled=true;
+
   function isAuction(v){ return (v.deptNm||'').includes('경매')||(v.remarksCodeNm||'').includes('경매'); }
-  const sections=[];
-  targetKeys.forEach(dateKey => {
-    const g=groups[dateKey];
+
+  let savedCount = 0;
+  for (const dateKey of targetKeys) {
+    const g = groups[dateKey];
     const allRows=[...g.erp,...g.auto.map(a=>({slipNo:`AUTO-${a.id}`,custNm:a.name,deptNm:a.vendor||'',gyulAmt:a.amount,payWayCode:a.method,bankCode:'',bankAccount:'',remarksCodeNm:a.method}))];
     const toRows=rows=>rows.map(v=>({slipNo:v.slipNo||'',custNm:v.custNm||'',amt:parseAmt(v.gyulAmt||v.amount||0),descr:v.remarksCodeNm||'',payWayCode:v.payWayCode||'',bankCode:v.bankCode||'',bankAccount:v.bankAccount||'',payDate:dateKey,note:v.deptNm||''}));
+    const sections=[];
     const gen=allRows.filter(v=>!isAuction(v)), auc=allRows.filter(v=>isAuction(v));
     if(gen.length) sections.push({title:`${dateKey} 일반지출`,rows:toRows(gen)});
     if(auc.length) sections.push({title:`${dateKey} 경매장 일반지출`,rows:toRows(auc)});
-  });
-  document.getElementById('savePlanBtn').textContent='저장 중...';
-  document.getElementById('savePlanBtn').disabled=true;
-  const ok=await saveToSheets('saveDailyPlan',{planDate,sections});
+    if (sections.length) {
+      await saveToSheets('saveDailyPlan', {planDate: dateKey, sections});
+      savedCount++;
+    }
+  }
+
   document.getElementById('savePlanBtn').textContent='☁ Sheets 저장';
   document.getElementById('savePlanBtn').disabled=false;
-  toast(ok?`일일자금계획 저장됨 (${planDate})`:'저장 실패',ok?'s':'e');
+  toast(`일일자금계획 저장됨 (${savedCount}일치)`,'s');
 }
 // 지출예정일 저장 후 해당 날짜들의 자금계획 자동 저장
 async function autoSaveDailyPlan() {
