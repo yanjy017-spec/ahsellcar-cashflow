@@ -473,8 +473,14 @@ async function fetchGyulTab(ym) {
 
 async function loadInventoryOnly() {
   setSyncState('loading', '불러오는 중...');
-  const invEl = document.getElementById('invContent');
-  if (invEl) invEl.innerHTML = '<div style="padding:60px;text-align:center;color:#666;font-size:15px">⏳ 데이터 불러오는 중...</div>';
+  // 캐시 있으면 먼저 표시, 없으면 로딩 메시지
+  if (S.inventory && S.inventory.length) {
+    renderInventory();
+  } else {
+    const invEl = document.getElementById('invContent');
+    if (invEl) invEl.innerHTML = '<div style="padding:60px;text-align:center;color:#666;font-size:15px">⏳ 데이터 불러오는 중...</div>';
+  }
+  // 항상 최신 데이터 fetch
   try {
     const t = Date.now();
     const inventoryTxt = await fetch(CSV_BASE+'db_inventory&t='+t).then(r=>r.text()).catch(()=>'');
@@ -777,11 +783,6 @@ async function initApp() {
     document.head.appendChild(style);
 
     goPage('inventory', document.getElementById('nav-inventory'));
-    // 캐시 있으면 먼저 표시
-    if (S.inventory && S.inventory.length) {
-      renderInventory();
-      setSyncState('loading', '업데이트 중...');
-    }
     await loadInventoryOnly();
     setInterval(()=>loadInventoryOnly(), 30*60*1000);
     return;
