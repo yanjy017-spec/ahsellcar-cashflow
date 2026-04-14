@@ -1566,7 +1566,6 @@ function renderInventory() {
   const groups = [];
   let pendingDetails = [];
   let grandCnt=0, grandAmt=0, grandCost=0, grandTotal=0;
-  let totalRow = null;
 
   for (const r of rows) {
     if (r.type === 'detail') {
@@ -1580,71 +1579,71 @@ function renderInventory() {
       groups.push({dept:r.dept, details:pendingDetails, sub:{...r,cnt:sc,amt:sa,cost:so,total:st}});
       grandCnt+=sc; grandAmt+=sa; grandCost+=so; grandTotal+=st;
       pendingDetails = [];
-    } else if (r.type === 'total') {
-      totalRow = {...r, cnt:grandCnt, amt:grandAmt, cost:grandCost, total:grandTotal};
     }
   }
 
-  el.style.background = '#fff';
-  el.style.color = '#111';
-  el.style.borderRadius = '0 0 12px 12px';
+  // topbar 높이 감지 (일반/모바일 분기)
+  const topbarH = document.querySelector('.topbar')?.offsetHeight || 50;
+  const phH = 44; // 패널 헤더 높이
+  const stickyTop = topbarH + phH;
 
-  const COL_STYLE = 'padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af';
-  const TOT_STYLE = 'padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af';
+  const COL_STYLE = `padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af;position:sticky;top:${stickyTop}px;z-index:10;white-space:nowrap`;
+  const TOT_STYLE = `padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af;position:sticky;top:${stickyTop + 44}px;z-index:9;white-space:nowrap`;
 
-  const stickyHtml = `
-    <div style="position:sticky;top:44px;z-index:10;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.08)">
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <colgroup>
-          <col style="min-width:130px"><col style="min-width:180px"><col style="min-width:70px">
-          <col style="min-width:150px"><col style="min-width:150px"><col style="min-width:150px">
-        </colgroup>
-        <thead>
-          <tr>
-            <th style="${COL_STYLE};text-align:left">매입담당부서</th>
-            <th style="${COL_STYLE};text-align:left">소유구분</th>
-            <th style="${COL_STYLE};text-align:right">대수</th>
-            <th style="${COL_STYLE};text-align:right">매입가(공급가)</th>
-            <th style="${COL_STYLE};text-align:right">총부대비(공급가)</th>
-            <th style="${COL_STYLE};text-align:right">합계(공급가)</th>
-          </tr>
-          ${totalRow ? `<tr>
-            <td colspan="2" style="${TOT_STYLE};border-top:none">총합계</td>
-            <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(totalRow.cnt)}</td>
-            <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(totalRow.amt)}</td>
-            <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(totalRow.cost)}</td>
-            <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(totalRow.total)}</td>
-          </tr>` : ''}
-        </thead>
-      </table>
-    </div>`;
-
-  let bodyHtml = '<div style="overflow-x:auto"><table style="font-size:14px;width:100%;border-collapse:collapse">';
-  bodyHtml += '<colgroup><col style="min-width:130px"><col style="min-width:180px"><col style="min-width:70px"><col style="min-width:150px"><col style="min-width:150px"><col style="min-width:150px"></colgroup><tbody>';
+  // 단일 테이블 — 가로스크롤 wrapper 안에 thead(sticky) + tbody
+  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table style="font-size:14px;width:100%;border-collapse:collapse;min-width:680px">
+    <colgroup>
+      <col style="min-width:130px">
+      <col style="min-width:160px">
+      <col style="min-width:65px">
+      <col style="min-width:145px">
+      <col style="min-width:145px">
+      <col style="min-width:145px">
+    </colgroup>
+    <thead>
+      <tr>
+        <th style="${COL_STYLE};text-align:left">매입담당부서</th>
+        <th style="${COL_STYLE};text-align:left">소유구분</th>
+        <th style="${COL_STYLE};text-align:right">대수</th>
+        <th style="${COL_STYLE};text-align:right">매입가(공급가)</th>
+        <th style="${COL_STYLE};text-align:right">총부대비(공급가)</th>
+        <th style="${COL_STYLE};text-align:right">합계(공급가)</th>
+      </tr>
+      <tr>
+        <td colspan="2" style="${TOT_STYLE}">총합계</td>
+        <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(grandCnt)}</td>
+        <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(grandAmt)}</td>
+        <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(grandCost)}</td>
+        <td style="${TOT_STYLE};text-align:right;font-family:var(--mo)">${fmt(grandTotal)}</td>
+      </tr>
+    </thead>
+    <tbody>`;
 
   groups.forEach((g, gi) => {
-    if (gi > 0) bodyHtml += '<tr><td colspan="6" style="padding:5px;background:#f0f4ff;border:none"></td></tr>';
+    if (gi > 0) html += '<tr><td colspan="6" style="padding:4px;background:#f0f4ff;border:none"></td></tr>';
     g.details.forEach((d, i) => {
       const isFirst = i === 0;
-      bodyHtml += `<tr style="background:${isFirst?'#eff6ff':'#fff'};border-bottom:1px solid #e5e7eb">`;
-      bodyHtml += `<td style="padding:9px 12px;font-weight:${isFirst?'700':'400'};color:${isFirst?'#1e40af':'#333'};font-size:${isFirst?'14':'13'}px">${isFirst?g.dept:''}</td>`;
-      bodyHtml += `<td style="padding:9px 12px 9px 24px;color:#111;font-size:14px">${d.owner}</td>`;
-      bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cnt)}</td>`;
-      bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.amt)}</td>`;
-      bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cost)}</td>`;
-      bodyHtml += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.total)}</td>`;
-      bodyHtml += '</tr>';
+      html += `<tr style="background:${isFirst?'#eff6ff':'#fff'};border-bottom:1px solid #e5e7eb">`;
+      html += `<td style="padding:9px 12px;font-weight:${isFirst?'700':'400'};color:${isFirst?'#1e40af':'#333'};font-size:${isFirst?'14':'13'}px;white-space:nowrap">${isFirst?g.dept:''}</td>`;
+      html += `<td style="padding:9px 12px 9px 20px;color:#111;font-size:13px">${d.owner}</td>`;
+      html += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cnt)}</td>`;
+      html += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.amt)}</td>`;
+      html += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.cost)}</td>`;
+      html += `<td style="text-align:right;padding:9px 12px;color:#111;font-family:var(--mo)">${fmt(d.total)}</td>`;
+      html += '</tr>';
     });
-    bodyHtml += `<tr style="background:#dbeafe;border-top:1px solid #93c5fd;border-bottom:1px solid #93c5fd">`;
-    bodyHtml += `<td colspan="2" style="padding:9px 12px;font-weight:700;color:#1e40af;font-size:14px">${g.dept} 합계</td>`;
-    bodyHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cnt)}</td>`;
-    bodyHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.amt)}</td>`;
-    bodyHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cost)}</td>`;
-    bodyHtml += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.total)}</td>`;
-    bodyHtml += '</tr>';
+    html += `<tr style="background:#dbeafe;border-top:1px solid #93c5fd;border-bottom:2px solid #93c5fd">`;
+    html += `<td colspan="2" style="padding:9px 12px;font-weight:700;color:#1e40af;font-size:14px;white-space:nowrap">${g.dept} 합계</td>`;
+    html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cnt)}</td>`;
+    html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.amt)}</td>`;
+    html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.cost)}</td>`;
+    html += `<td style="text-align:right;padding:9px 12px;font-weight:700;color:#1e40af;font-family:var(--mo)">${fmt(g.sub.total)}</td>`;
+    html += '</tr>';
   });
-  bodyHtml += '</tbody></table></div>';
-  el.innerHTML = stickyHtml + bodyHtml;
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
 }
 // ══ 토스트 ═══════════════════════════════════════
 function toast(msg,type='i'){
