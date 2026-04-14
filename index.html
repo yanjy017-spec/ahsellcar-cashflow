@@ -1582,16 +1582,26 @@ function renderInventory() {
     }
   }
 
-  // topbar 높이 감지 (일반/모바일 분기)
-  const topbarH = document.querySelector('.topbar')?.offsetHeight || 50;
-  const phH = 44; // 패널 헤더 높이
+  // topbar + 패널헤더 높이를 실제로 측정해서 sticky top 계산
+  const topbarEl = document.querySelector('.topbar');
+  const phEl = el.closest('.panel')?.querySelector('.ph');
+  const topbarH = topbarEl?.offsetHeight || 50;
+  const phH     = phEl?.offsetHeight     || 44;
   const stickyTop = topbarH + phH;
+  const colRowH   = 44; // 컬럼명 행 높이 (근사값)
 
-  const COL_STYLE = `padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af;position:sticky;top:${stickyTop}px;z-index:10;white-space:nowrap`;
-  const TOT_STYLE = `padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af;position:sticky;top:${stickyTop + 44}px;z-index:9;white-space:nowrap`;
+  const COL_STYLE = `padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af;position:sticky;top:0px;z-index:10;white-space:nowrap`;
+  const TOT_STYLE = `padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af;position:sticky;top:${colRowH}px;z-index:9;white-space:nowrap`;
 
-  // 단일 테이블 — 가로스크롤 wrapper 안에 thead(sticky) + tbody
-  let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  // thead(sticky)는 overflow 바깥, tbody만 가로스크롤 안에 넣으면
+  // sticky가 제대로 동작하지 않음 — 대신 wrapper에 max-height + overflow-y 적용하고
+  // thead th/td에 position:sticky top 적용하는 단일 컨테이너 방식 사용
+  // (overflow-x:auto + overflow-y:auto 동시 적용 시 sticky 작동)
+  const contentEl = document.querySelector('.content');
+  const contentH  = contentEl?.offsetHeight || 600;
+  const panelHeaderH = phH + 4;
+
+  let html = `<div style="overflow:auto;-webkit-overflow-scrolling:touch;max-height:${contentH - panelHeaderH}px">
   <table style="font-size:14px;width:100%;border-collapse:collapse;min-width:680px">
     <colgroup>
       <col style="min-width:130px">
