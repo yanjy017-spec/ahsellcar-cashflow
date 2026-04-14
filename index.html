@@ -860,12 +860,13 @@ function goPage(name,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('on'));
   document.getElementById('page-'+name).classList.add('on');
   if(el) el.classList.add('on');
-  document.getElementById('topTitle').textContent=TITLES[name]||name;
+  const topTitleEl = document.getElementById('topTitle');
+  if (topTitleEl) topTitleEl.textContent = TITLES[name]||name;
   curPage=name;
 
   const monthTabsEl = document.getElementById('monthTabs');
   const toggleEl    = document.getElementById('monthViewToggle');
-  monthTabsEl.style.display = PAGES_WITH_MONTH_TAB.has(name) ? '' : 'none';
+  if (monthTabsEl) monthTabsEl.style.display = PAGES_WITH_MONTH_TAB.has(name) ? '' : 'none';
   if (toggleEl) toggleEl.style.display = (name==='voucher'||name==='fund') ? 'flex' : 'none';
 }
 
