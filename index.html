@@ -325,9 +325,7 @@ select.fi option{background:var(--bg)}
           <span class="ph-title" style="color:#111;font-size:15px">📦 현재 재고현황</span>
           <span class="sync-info" id="invSyncInfo" style="color:#555"></span>
         </div>
-        <div class="pb" id="invContent" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch">
-          <div style="padding:40px;text-align:center;color:#666">데이터 로딩 중...</div>
-        </div>
+        <div class="pb" id="invContent" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
       </div>
     </div>
 
@@ -1630,7 +1628,7 @@ function renderInventory() {
 
   const dateStr = S.invDate || '';
   const uploadStr = S.invUpload || '';
-  info.innerHTML = dateStr ? `기준일 <span style="color:#1a56db;font-weight:600">${dateStr}</span> · 업로드 ${uploadStr}` : '';
+  if (info) info.innerHTML = dateStr ? `기준일 <span style="color:#1a56db;font-weight:600">${dateStr}</span> · 업로드 ${uploadStr}` : '';
 
   function fmt(n){ return Number(n||0).toLocaleString(); }
 
