@@ -525,6 +525,8 @@ async function loadInventoryOnly() {
       if (invEl2) invEl2.innerHTML = '<div style="padding:40px;text-align:center;color:#666;font-size:13px">⚠️ 재고 데이터 없음 — Sheets db_inventory 탭 확인 필요</div>';
     } else {
       renderInventory();
+      // 모바일 키보드 닫힌 후 레이아웃 재계산 트리거
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
     }
   }
 }
@@ -710,7 +712,8 @@ function checkPw() {
     sessionStorage.setItem(LOGIN_KEY, '1');
     sessionStorage.setItem('inv_only', '1');
     document.getElementById('loginOverlay').classList.add('hide');
-    initApp();
+    // 모바일 키보드가 완전히 내려간 후 실행되도록 지연
+    setTimeout(() => initApp(), 300);
   } else {
     document.getElementById('pwErr').textContent = '비밀번호가 틀렸습니다';
     document.getElementById('pwInput').value = '';
