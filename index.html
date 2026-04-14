@@ -616,9 +616,15 @@ async function loadFromSheets(manual=false) {
     console.error(e);
   } finally {
     showLoading(false);
-    buildMonthTabs(); renderFdChips(); renderFdEditor(); renderBal(); renderAuto(); renderAll();
-    const el=document.getElementById('lastSyncDetail');
-    if(el&&S.lastSync) el.textContent='마지막 수집: '+new Date(S.lastSync).toLocaleString('ko-KR');
+    if (sessionStorage.getItem('inv_only') === '1') {
+      renderInventory();
+      const el=document.getElementById('lastSyncDetail');
+      if(el&&S.lastSync) el.textContent='마지막 수집: '+new Date(S.lastSync).toLocaleString('ko-KR');
+    } else {
+      buildMonthTabs(); renderFdChips(); renderFdEditor(); renderBal(); renderAuto(); renderAll();
+      const el=document.getElementById('lastSyncDetail');
+      if(el&&S.lastSync) el.textContent='마지막 수집: '+new Date(S.lastSync).toLocaleString('ko-KR');
+    }
   }
 }
 
@@ -724,6 +730,15 @@ async function initApp() {
     document.head.appendChild(style);
 
     goPage('inventory', document.getElementById('nav-inventory'));
+    // 캐시 데이터 있으면 먼저 표시
+    if (S.inventory && S.inventory.length) {
+      renderInventory();
+      setSyncState('loading', '업데이트 중...');
+    } else {
+      // 캐시 없으면 invContent에 로딩 메시지 직접 표시
+      const invEl = document.getElementById('invContent');
+      if (invEl) invEl.innerHTML = '<div style="padding:60px;text-align:center;color:#666;font-size:15px">⏳ 데이터 불러오는 중...</div>';
+    }
     await loadFromSheets();
     setInterval(()=>loadFromSheets(), 30*60*1000);
     return;
