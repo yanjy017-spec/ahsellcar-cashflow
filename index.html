@@ -325,7 +325,7 @@ select.fi option{background:var(--bg)}
           <span class="ph-title" style="color:#111;font-size:15px">📦 현재 재고현황</span>
           <span class="sync-info" id="invSyncInfo" style="color:#555"></span>
         </div>
-        <div class="pb" id="invContent" style="padding:0">
+        <div class="pb" id="invContent" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch">
           <div style="padding:40px;text-align:center;color:#666">데이터 로딩 중...</div>
         </div>
       </div>
@@ -380,7 +380,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyAnhgxBvuAJB_xO2xNfE3DjELGwOz88P7-65WIJx1uh-49a4COiGAAnYq8zfrMjZ0SuA/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -674,10 +674,55 @@ async function initApp() {
   curMonth=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
 
   if (sessionStorage.getItem('inv_only') === '1') {
+    // 사이드바 / topbar / 월탭 완전 숨김
     ['nav-dash','nav-voucher','nav-fund','nav-auto','nav-settings'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     document.getElementById('monthTabs').style.display = 'none';
+
+    // 사이드바 완전 제거
+    const side = document.querySelector('.side');
+    if (side) side.style.display = 'none';
+
+    // topbar를 간소화된 재고 전용 헤더로 교체
+    const topbar = document.querySelector('.topbar');
+    if (topbar) {
+      topbar.innerHTML = `
+        <span style="font-size:15px;font-weight:700;color:#dde3ef;flex:1">📦 현재 재고현황</span>
+        <span class="sync-info"><div class="sync-dot" id="syncDot"></div><span id="syncTime">-</span></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadFromSheets(true)" style="font-size:12px">↻</button>
+        <button class="btn btn-pri btn-sm" onclick="exportXlsx()" style="font-size:12px">↓ 엑셀</button>
+      `;
+      topbar.style.padding = '0 12px';
+    }
+
+    // body가 flex 전체화면 차지하도록
+    const bodyEl = document.querySelector('.body');
+    if (bodyEl) bodyEl.style.width = '100%';
+
+    // 재고 테이블 모바일 최적화 CSS 추가
+    const style = document.createElement('style');
+    style.textContent = `
+      @media (max-width: 768px) {
+        .topbar { height: 46px !important; min-height: 46px !important; }
+        .content { padding: 8px !important; }
+        #page-inventory .panel { border-radius: 8px !important; }
+        #invContent table { font-size: 12px !important; }
+        #invContent td, #invContent th { padding: 7px 8px !important; }
+        /* sticky 헤더 top 조정 (topbar 높이 변경 반영) */
+        #invContent > div:first-child { top: 46px !important; }
+      }
+      @media (max-width: 480px) {
+        .topbar { height: 44px !important; min-height: 44px !important; }
+        #invContent table { font-size: 11px !important; }
+        #invContent td, #invContent th { padding: 6px 6px !important; }
+        #invContent td:nth-child(4),
+        #invContent th:nth-child(4) { min-width: 110px !important; }
+        #invContent > div:first-child { top: 44px !important; }
+      }
+    `;
+    document.head.appendChild(style);
+
     goPage('inventory', document.getElementById('nav-inventory'));
     await loadFromSheets();
     setInterval(()=>loadFromSheets(), 30*60*1000);
