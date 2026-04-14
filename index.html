@@ -518,9 +518,16 @@ async function loadInventoryOnly() {
     setSyncState('ok', t2.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+' 기준');
   } catch(e) {
     setSyncState('err','로드 실패');
+    const invEl = document.getElementById('invContent');
+    if (invEl) invEl.innerHTML = `<div style="padding:40px;text-align:center;color:red;font-size:13px">❌ 오류: ${e.message}</div>`;
     console.error(e);
   } finally {
-    renderInventory();
+    const invEl2 = document.getElementById('invContent');
+    if (!S.inventory || !S.inventory.length) {
+      if (invEl2) invEl2.innerHTML = '<div style="padding:40px;text-align:center;color:#666;font-size:13px">⚠️ 재고 데이터 없음 — Sheets db_inventory 탭 확인 필요</div>';
+    } else {
+      renderInventory();
+    }
   }
 }
 
