@@ -1588,7 +1588,7 @@ function renderInventory() {
   const topbarH = topbarEl?.offsetHeight || 50;
   const phH     = phEl?.offsetHeight     || 44;
   const stickyTop = topbarH + phH;
-  const colRowH   = 44; // 컬럼명 행 높이 (근사값)
+  const colRowH   = 38; // 컬럼명 행 높이
 
   const COL_STYLE = `padding:10px 12px;font-size:13px;font-weight:700;color:#111;background:#fff;border-bottom:2px solid #1e40af;position:sticky;top:0px;z-index:10;white-space:nowrap`;
   const TOT_STYLE = `padding:10px 12px;font-weight:700;font-size:15px;color:#fff;background:#1e40af;position:sticky;top:${colRowH}px;z-index:9;white-space:nowrap`;
@@ -1654,6 +1654,19 @@ function renderInventory() {
 
   html += '</tbody></table></div>';
   el.innerHTML = html;
+
+  // 렌더링 후 실제 컬럼명 행 높이 측정 → 총합계 sticky top 재조정
+  requestAnimationFrame(() => {
+    const thead = el.querySelector('thead');
+    if (!thead) return;
+    const rows = thead.querySelectorAll('tr');
+    if (rows.length >= 2) {
+      const colRowActualH = rows[0].offsetHeight;
+      rows[1].querySelectorAll('td').forEach(td => {
+        td.style.top = colRowActualH + 'px';
+      });
+    }
+  });
 }
 // ══ 토스트 ═══════════════════════════════════════
 function toast(msg,type='i'){
