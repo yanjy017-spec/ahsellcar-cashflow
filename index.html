@@ -790,6 +790,8 @@ async function initApp() {
     document.head.appendChild(style);
 
     goPage('inventory', document.getElementById('nav-inventory'));
+    // DOM 업데이트 완료 후 로드 시작
+    await new Promise(r => setTimeout(r, 50));
     await loadInventoryOnly();
     setInterval(()=>loadInventoryOnly(), 30*60*1000);
     return;
@@ -1616,6 +1618,10 @@ function exportInventoryXlsx(){
 function renderInventory() {
   const el = document.getElementById('invContent');
   const info = document.getElementById('invSyncInfo');
+  if (!el) {
+    console.error('renderInventory: invContent 요소 없음');
+    return;
+  }
   const rows = S.inventory || [];
   if (!rows.length) {
     el.innerHTML = '<div style="padding:40px;text-align:center;color:#666">db_inventory 탭에 데이터가 없습니다.</div>';
