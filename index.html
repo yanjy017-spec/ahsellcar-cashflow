@@ -380,7 +380,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyAnhgxBvuAJB_xO2xNfE3DjELGwOz88P7-65WIJx1uh-49a4COiGAAnYq8zfrMjZ0SuA/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -1454,43 +1454,42 @@ function exportInventoryXlsx(){
 
   const wb = XLSX.utils.book_new();
 
-  // 피벗 요약 시트
-  const pivotData = [['구분','소유구분','대수','매입가(공급가)','총부대비(공급가)','합계(공급가)']];
-  let currentGroup = '';
+  // renderInventory와 동일한 0원 제외 + 소계 재계산 로직
+  const groups = [];
+  let pendingDetails = [];
+  let grandCnt=0, grandAmt=0, grandCost=0, grandTotal=0;
+
   for (const r of rows) {
     if (r.type === 'detail') {
-      // 앞에서 subtotal이 오면 currentGroup이 세팅됨 — detail은 그룹명 없이
-      pivotData.push(['', r.owner, r.cnt, r.amt, r.cost, r.total]);
+      if (Number(r.total) === 0) continue;  // 공급가 0원 제외
+      pendingDetails.push({...r});
     } else if (r.type === 'subtotal') {
-      currentGroup = r.dept;
-      pivotData.push([r.dept + ' 합계', '', r.cnt, r.amt, r.cost, r.total]);
-    } else if (r.type === 'total') {
-      pivotData.push(['총합계', '', r.cnt, r.amt, r.cost, r.total]);
+      const sc=pendingDetails.reduce((s,d)=>s+Number(d.cnt),0);
+      const sa=pendingDetails.reduce((s,d)=>s+Number(d.amt),0);
+      const so=pendingDetails.reduce((s,d)=>s+Number(d.cost),0);
+      const st=pendingDetails.reduce((s,d)=>s+Number(d.total),0);
+      groups.push({dept:r.dept, details:pendingDetails, sub:{cnt:sc,amt:sa,cost:so,total:st}});
+      grandCnt+=sc; grandAmt+=sa; grandCost+=so; grandTotal+=st;
+      pendingDetails = [];
     }
   }
-  // 피벗을 그룹명이 detail 앞에 오도록 재정렬
-  const orderedData = [pivotData[0]];
-  const body = pivotData.slice(1);
-  // subtotal 행을 해당 detail들 앞으로 이동
-  let i = 0;
-  while (i < body.length) {
-    const row = body[i];
-    if (row[0] && row[0].endsWith(' 합계')) {
-      // subtotal — 앞에 배치, 이후 detail들 수집
-      const subtotalRow = row;
-      const details = [];
-      i++;
-      while (i < body.length && !body[i][0]) { details.push(body[i]); i++; }
-      orderedData.push(subtotalRow);
-      orderedData.push(...details);
-    } else {
-      orderedData.push(row); i++;
+
+  // 피벗 요약 시트 (그룹명 → detail 순서로 정렬)
+  const pivotData = [['구분','소유구분','대수','매입가(공급가)','총부대비(공급가)','합계(공급가)']];
+  // 총합계 행 먼저
+  pivotData.push(['총합계', '', grandCnt, grandAmt, grandCost, grandTotal]);
+  // 그룹별
+  for (const g of groups) {
+    pivotData.push([g.dept + ' 합계', '', g.sub.cnt, g.sub.amt, g.sub.cost, g.sub.total]);
+    for (const d of g.details) {
+      pivotData.push(['', d.owner, d.cnt, d.amt, d.cost, d.total]);
     }
   }
-  const wsPivot = XLSX.utils.aoa_to_sheet(orderedData);
+
+  const wsPivot = XLSX.utils.aoa_to_sheet(pivotData);
   XLSX.utils.book_append_sheet(wb, wsPivot, '재고요약');
 
-  // 원본 raw 시트 (S.inventoryRaw 있으면)
+  // 원본 raw 시트
   if (S.inventoryRaw && S.inventoryRaw.length > 1) {
     const wsRaw = XLSX.utils.aoa_to_sheet(S.inventoryRaw);
     XLSX.utils.book_append_sheet(wb, wsRaw, '재고원본');
@@ -1518,7 +1517,7 @@ function renderInventory() {
 
   function fmt(n){ return Number(n||0).toLocaleString(); }
 
-  // 그룹별 묶기 + 원가 0원 제외 + 소계/총합계 재계산
+  // 그룹별 묶기 + 소계/총합계 재계산
   const groups = [];
   let pendingDetails = [];
   let grandCnt=0, grandAmt=0, grandCost=0, grandTotal=0;
