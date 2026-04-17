@@ -133,6 +133,8 @@ select.fi option{background:var(--bg)}
 .plan-tbl tbody tr{border-bottom:1px solid var(--bd)}
 .plan-tbl tbody tr:hover{background:var(--s2)}
 .plan-tbl tbody td{padding:7px 10px;vertical-align:middle}
+.plan-input{background:transparent;border:none;border-bottom:1px solid var(--bd);color:var(--tx);font-size:11px;padding:2px 4px;outline:none;width:100%}
+.plan-input:focus{border-bottom:1px solid var(--acc);background:var(--s2)}
 .plan-subtotal td{background:rgba(46,204,122,.06);font-weight:700;color:var(--grn)}
 .plan-hl{background:rgba(240,160,64,.08)!important}
 /* 인쇄 */
@@ -214,12 +216,7 @@ select.fi option{background:var(--bg)}
     </div>
   </div>
   <div class="month-tabs" id="monthTabs"></div>
-  <div id="monthViewToggle" style="display:none;padding:4px 18px;background:var(--s1);border-bottom:1px solid var(--bd);gap:4px;align-items:center">
-    <span style="font-size:10px;color:var(--tx3);font-weight:700;letter-spacing:.4px;margin-right:4px">기준</span>
-    <button class="fc on" id="mvGyul" onclick="setMonthViewMode('gyul')" style="font-size:10.5px;padding:2px 9px">결의월</button>
-    <button class="fc" id="mvPay"  onclick="setMonthViewMode('pay')"  style="font-size:10.5px;padding:2px 9px">지출월</button>
-    <span style="font-size:10px;color:var(--tx3);margin-left:8px" id="monthViewDesc">결의일자 기준으로 표시</span>
-  </div>
+  <div id="monthViewToggle" style="display:none"></div>
   <div class="content">
 
     <!-- 대시보드 -->
@@ -292,11 +289,11 @@ select.fi option{background:var(--bg)}
         </div>
       </div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
-        <button class="fc on" id="viewModeCard" onclick="setFundViewMode('card')">카드 보기</button>
-        <button class="fc" id="viewModeTable" onclick="setFundViewMode('table')">지급내역 형식</button>
+        <button class="fc" id="viewModeCard" onclick="setFundViewMode('card')">카드 보기</button>
+        <button class="fc on" id="viewModeTable" onclick="setFundViewMode('table')">지급내역 형식</button>
       </div>
-      <div id="fpGrid" class="fp-grid"></div>
-      <div id="fpTableView" style="display:none"></div>
+      <div id="fpGrid" class="fp-grid" style="display:none"></div>
+      <div id="fpTableView"></div>
     </div>
 
     <!-- 자동이체 -->
@@ -378,7 +375,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbw7OvgapPnhaop5J2bGIkaTEBaGhPc48x5m7g4cqYS9gxBjAR7zr8824dp1vGHvqeKJbQ/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbzbhkJeinzcsrOC1L7zwYKGDdbNV6K5Rhdy33LbKvfhP_VmtzKvBTg7iec1I-rVQ3e3SQ/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -389,8 +386,10 @@ function defaultState() {
   return {
     vouchers:[], autoDebits:[], inventory:[], inventoryRaw:[], invDate:'', invUpload:'',
     fundDays:[{month:null,day:20},{month:null,day:25}],
-    fundDaysMap:{}, // { '2026_01': [2,5,7,...] } — Sheets 가로 배열
+    fundDaysMap:{},
     balances:{보통예금:0,사용제한예금:0,현금:0,상품권:0},
+    fundNotes:{},   // {slipNo: '특이사항 텍스트'}
+    fundDescrs:{},  // {slipNo: '비고 텍스트'}
     lastSync:null
   };
 }
@@ -457,11 +456,12 @@ async function fetchGyulTab(ym) {
       payDate:        '',  // 기본 빈칸 (지출예정일 탭에서만 로드)
       approvalStatus: r['결재상태']||'',
       gyulAmt:        (r['전표금액(원)']||'0').replace(/,/g,''),
-      bankCode:       r['은행']||'',   // Sheets의 '은행' 컬럼은 이미 한글명
+      bankCode:       r['은행']||'',
       bankAccount:    r['계좌번호']||'',
       custNm:         r['거래처명']||'',
       remarksCodeNm:  r['적요']||'',
       descr:          r['비고']||'',
+      createdByNm:    r['등록자']||'',  // W열 - 지출요청자
       gyulDt:         r['결의일자']||'',
     })).filter(r => r.slipNo);
   } catch(e) {
@@ -811,7 +811,7 @@ async function initApp() {
 }
 
 // ══ 월 탭 ════════════════════════════════════════
-let monthViewMode = 'gyul'; // 'gyul'=결의월, 'pay'=지출월
+let monthViewMode = 'pay'; // 항상 지출월 기준
 
 function getMonths() {
   const ms = new Set();
@@ -1156,7 +1156,7 @@ async function saveVoucherChanges() {
 }
 
 // ══ 자금계획 ══════════════════════════════════════
-let fundViewMode     = 'card';
+let fundViewMode     = 'table';
 let selectedFundDate = null;
 
 function setFundViewMode(mode) {
@@ -1312,14 +1312,19 @@ function renderFundTable() {
         const slipDisp = v._isAuto
           ? `<span style="font-size:10px;color:var(--grn)">자동이체</span>`
           : `<span class="mono" style="font-size:10.5px;color:var(--acc);background:rgba(240,160,64,.15);padding:1px 5px;border-radius:3px">${v.slipNo}</span>`;
+        const noteVal  = (S.fundNotes  && S.fundNotes[v.slipNo]  ) || '';
+        const descrVal = (S.fundDescrs && S.fundDescrs[v.slipNo] ) || '';
         html2+=`<tr class="${hl}">
           <td class="ctr" style="color:var(--tx3)">${i+1}</td>
           <td>${slipDisp}</td>
           <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.remarksCodeNm||''}</td>
           <td class="amt" style="font-weight:700">${fmt(v.gyulAmt||v.amount||0)}</td>
           <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.custNm||''}</td>
-          <td style="font-size:10px;color:var(--tx3)">${v.deptNm||''}</td>
-          <td></td><td style="font-size:11px;color:var(--tx3)">${v._isAuto?'시스템':''}</td>
+          <td><input type="text" class="plan-input" placeholder="특이사항 입력" value="${noteVal.replace(/"/g,'&quot;')}"
+            oninput="saveFundNote('${v.slipNo}','note',this.value)" style="width:100%;min-width:100px"></td>
+          <td><input type="text" class="plan-input" placeholder="비고 입력" value="${descrVal.replace(/"/g,'&quot;')}"
+            oninput="saveFundNote('${v.slipNo}','descr',this.value)" style="width:100%;min-width:80px"></td>
+          <td style="font-size:11px;color:var(--tx3)">${v._isAuto?'시스템':(v.createdByNm||'')}</td>
           <td style="font-size:11px">${v.bankCode||''}</td>
           <td class="mono" style="font-size:10.5px">${v.bankAccount||''}</td>
         </tr>`;
@@ -1342,6 +1347,15 @@ function printDailyPlan() {
   setTimeout(() => window.print(), 300);
 }
 
+// 특이사항/비고 입력값 저장 (로컬)
+function saveFundNote(slipNo, field, value) {
+  if (!S.fundNotes)  S.fundNotes  = {};
+  if (!S.fundDescrs) S.fundDescrs = {};
+  if (field === 'note')  S.fundNotes[slipNo]  = value;
+  if (field === 'descr') S.fundDescrs[slipNo] = value;
+  saveState();
+}
+
 async function saveDailyPlanToSheets() {
   const {groups} = buildFundGroups();
   const targetKeys = Object.keys(groups).sort().filter(k => !selectedFundDate || k === selectedFundDate);
@@ -1356,7 +1370,7 @@ async function saveDailyPlanToSheets() {
   for (const dateKey of targetKeys) {
     const g = groups[dateKey];
     const allRows=[...g.erp,...g.auto.map(a=>({slipNo:`AUTO-${a.id}`,custNm:a.name,deptNm:a.vendor||'',gyulAmt:a.amount,payWayCode:a.method,bankCode:'',bankAccount:'',remarksCodeNm:a.method}))];
-    const toRows=rows=>rows.map(v=>({slipNo:v.slipNo||'',custNm:v.custNm||'',amt:parseAmt(v.gyulAmt||v.amount||0),descr:v.remarksCodeNm||'',payWayCode:v.payWayCode||'',bankCode:v.bankCode||'',bankAccount:v.bankAccount||'',payDate:dateKey,note:v.deptNm||''}));
+    const toRows=rows=>rows.map(v=>({slipNo:v.slipNo||'',custNm:v.custNm||'',amt:parseAmt(v.gyulAmt||v.amount||0),descr:v.remarksCodeNm||'',payWayCode:v.payWayCode||'',bankCode:v.bankCode||'',bankAccount:v.bankAccount||'',payDate:dateKey,note:(S.fundNotes&&S.fundNotes[v.slipNo])||'',memo:(S.fundDescrs&&S.fundDescrs[v.slipNo])||'',requester:v.createdByNm||''}));
     const sections=[];
     const gen=allRows.filter(v=>!isAuction(v)), auc=allRows.filter(v=>isAuction(v));
     if(gen.length) sections.push({title:`${dateKey} 일반지출`,rows:toRows(gen)});
@@ -1392,7 +1406,10 @@ async function autoSaveDailyPlan() {
       slipNo:v.slipNo||'', custNm:v.custNm||'',
       amt:parseAmt(v.gyulAmt||v.amount||0), descr:v.remarksCodeNm||'',
       payWayCode:v.payWayCode||'', bankCode:v.bankCode||'',
-      bankAccount:v.bankAccount||'', payDate:dateKey, note:v.deptNm||'',
+      bankAccount:v.bankAccount||'', payDate:dateKey,
+      note:(S.fundNotes&&S.fundNotes[v.slipNo])||'',
+      memo:(S.fundDescrs&&S.fundDescrs[v.slipNo])||'',
+      requester:v.createdByNm||'',
     }));
     const sections = [];
     const gen = allRows.filter(v => !isAuction(v));
