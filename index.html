@@ -375,7 +375,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyjJfCrDZ0od2QtTGTKBrGM71Dll-M2FQL0QUqx_-73sLc1eTV-I2oo8m7JaOszW__PAg/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyAnhgxBvuAJB_xO2xNfE3DjELGwOz88P7-65WIJx1uh-49a4COiGAAnYq8zfrMjZ0SuA/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -1042,6 +1042,26 @@ function renderDash() {
 // 변경 추적 맵 {slipNo → {payDate, payWayCode}}
 let vChanges = {};
 
+// 지출예정일 입력 셀에서 ↑ 또는 Ctrl+D → 바로 위 행 날짜 복사
+function copyAboveDate(e, el) {
+  const isUp    = e.key === 'ArrowUp';
+  const isCtrlD = e.key === 'd' && (e.ctrlKey || e.metaKey);
+  if (!isUp && !isCtrlD) return;
+  e.preventDefault();
+
+  // 현재 셀이 속한 <tr>의 이전 <tr>에서 날짜 input 찾기
+  const tr    = el.closest('tr');
+  const prevTr= tr?.previousElementSibling;
+  if (!prevTr) return;
+
+  const prevInput = prevTr.querySelector('input[data-field="payDate"]');
+  if (!prevInput || !prevInput.value) return;
+
+  el.value = prevInput.value;
+  markVChange(el.dataset.slip, 'payDate', el.value);
+  el.focus();
+}
+
 function markVChange(slipNo, field, val) {
   if (!vChanges[slipNo]) vChanges[slipNo] = {};
   vChanges[slipNo][field] = val;
@@ -1102,6 +1122,7 @@ function renderVoucher(){
       onfocus="this.style.borderColor='var(--acc)'"
       onblur="this.style.borderColor='${hasPayDate?'transparent':'rgba(74,128,255,.3)'}'"
       oninput="markVChange('${r.slipNo}','payDate',this.value)"
+      onkeydown="copyAboveDate(event,this)"
       data-slip="${r.slipNo}" data-field="payDate"
     >`;
 
