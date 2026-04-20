@@ -191,7 +191,7 @@ select.fi option{background:var(--bg)}
   <div class="nav-item" id="nav-fund" onclick="goPage('fund',this)">
     <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1.5"/><line x1="5" y1="1" x2="5" y2="5"/><line x1="11" y1="1" x2="11" y2="5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="11" x2="9" y2="11"/></svg>일일자금계획
   </div>
-  <div class="nav-item" id="nav-auto" onclick="goPage('auto',this)">
+  <div class="nav-item" id="nav-auto" onclick="goPage('auto',this)" style="display:none">
     <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10.5,10"/></svg>자동이체 관리
   </div>
   <div class="nav-item" id="nav-inventory" onclick="goPage('inventory',this)">
@@ -375,7 +375,7 @@ const APP_TITLE    = '㈜오토허브셀카 자금관리';
 
 const SHEET_ID  = '1AE_kN_SjjCWJ1qN3Vt76721SMwe_0rZPbK0zDj_buzU';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-const GAS_URL   = 'https://script.google.com/macros/s/AKfycbzbhkJeinzcsrOC1L7zwYKGDdbNV6K5Rhdy33LbKvfhP_VmtzKvBTg7iec1I-rVQ3e3SQ/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycbyjJfCrDZ0od2QtTGTKBrGM71Dll-M2FQL0QUqx_-73sLc1eTV-I2oo8m7JaOszW__PAg/exec';
 // ↑ Apps Script 재배포 후 새 URL로 교체! (Code.gs → 배포 관리 → 기존 배포 업데이트)
 
 // ══ 로컬 상태 ════════════════════════════════════
@@ -572,18 +572,17 @@ async function loadFromSheets(manual=false) {
       }
     }
 
-    // 지출예정일 맵 {전표번호 → {payDate, payWayCode}}
-    // 컬럼: 회계일자(A) | 결의전표번호(B) | 적요(C) | 금액(D) | 거래처명(E) | 계좌번호(F) | 결제수단(G) | 지출예정일(H)
+    // 지출예정일 맵 {전표번호 → {payDate, payWayCode, fundNote, fundDescr}}
     const payDateMap = {};
     if (payDateTxt) {
       const lines = payDateTxt.trim().split('\n');
       if (lines.length > 1) {
-        // 헤더 행으로 컬럼 인덱스 파악
         const headers = parseRow(lines[0]).map(h=>h.replace(/"/g,'').trim());
         const iSlip   = headers.indexOf('결의전표번호');
         const iPay    = headers.indexOf('지출예정일');
         const iWay    = headers.indexOf('결제수단');
-        // 헤더가 없거나 구버전(전표번호)이면 fallback
+        const iNote   = headers.indexOf('특이사항');
+        const iDescr  = headers.indexOf('비고');
         const fallback = iSlip < 0;
 
         lines.slice(1).forEach(line => {
@@ -592,30 +591,39 @@ async function loadFromSheets(manual=false) {
           const slipNo  = fallback ? cols[0] : cols[iSlip] || '';
           const payDate = fallback ? cols[1] : (iPay>=0 ? cols[iPay] : cols[7]) || '';
           const payWay  = fallback ? cols[2] : (iWay>=0 ? cols[iWay] : cols[6]) || '';
+          const note    = iNote  >= 0 ? cols[iNote]  || '' : '';
+          const descr   = iDescr >= 0 ? cols[iDescr] || '' : '';
           if (slipNo && slipNo !== '결의전표번호') {
-            payDateMap[slipNo] = { payDate, payWayCode: payWay };
+            payDateMap[slipNo] = { payDate, payWayCode: payWay, fundNote: note, fundDescr: descr };
           }
         });
       }
     }
 
-    // 전체 월 데이터 합치기 (중복 전표번호 제거) + 지출예정일 병합
+    // 전체 월 데이터 합치기 (중복 전표번호 제거) + 지출예정일/특이사항/비고 병합
     const seen = new Set();
     const allVouchers = [];
     for (const rows of gyulResults) {
       for (const r of rows) {
         if (!seen.has(r.slipNo)) {
           seen.add(r.slipNo);
-          // 지출예정일 탭에 저장된 값이 있으면 덮어씌움
           if (payDateMap[r.slipNo]) {
             r.payDate    = payDateMap[r.slipNo].payDate    || r.payDate;
             r.payWayCode = payDateMap[r.slipNo].payWayCode || r.payWayCode;
+            r.fundNote   = payDateMap[r.slipNo].fundNote   || '';
+            r.fundDescr  = payDateMap[r.slipNo].fundDescr  || '';
           }
-
           allVouchers.push(r);
         }
       }
     }
+    // Sheets에서 로드한 특이사항/비고로 로컬 상태 동기화
+    S.fundNotes  = {};
+    S.fundDescrs = {};
+    allVouchers.forEach(r => {
+      if (r.fundNote)  S.fundNotes[r.slipNo]  = r.fundNote;
+      if (r.fundDescr) S.fundDescrs[r.slipNo] = r.fundDescr;
+    });
     S.vouchers = allVouchers;
 
     // 자동이체
@@ -1067,8 +1075,8 @@ function renderVoucher(){
   const q=(document.getElementById('vsearch')?.value||'').toLowerCase();
   let rows=monthVouchers();
 
-  // 음수 금액 제외 (입금 건)
-  rows = rows.filter(r => parseAmt(r.gyulAmt) > 0);
+  // 음수 금액 제외 (입금 건) + 결의구분1이 '입금'인 건 제외
+  rows = rows.filter(r => parseAmt(r.gyulAmt) > 0 && r.gyulType1Code !== '입금');
 
   if(curStatus!=='all') rows=rows.filter(r=>r.approvalStatus===curStatus);
   if(q) rows=rows.filter(r=>(r.custNm||'').toLowerCase().includes(q)||(r.slipNo||'').toLowerCase().includes(q));
@@ -1122,11 +1130,13 @@ async function saveVoucherChanges() {
     return {
       slipNo,
       payDate:       changes.payDate ?? v.payDate ?? '',
-      payWayCode:    v.payWayCode || '',  // 결제수단은 읽기용(표시 안함)
-      remarksCodeNm: v.remarksCodeNm  || '',
-      gyulAmt:       v.gyulAmt        || '',
-      custNm:        v.custNm         || '',
-      bankAccount:   v.bankAccount    || '',
+      payWayCode:    v.payWayCode    || '',
+      remarksCodeNm: v.remarksCodeNm || '',
+      gyulAmt:       v.gyulAmt       || '',
+      custNm:        v.custNm        || '',
+      bankAccount:   v.bankAccount   || '',
+      fundNote:      S.fundNotes  && S.fundNotes[slipNo]  || '',
+      fundDescr:     S.fundDescrs && S.fundDescrs[slipNo] || '',
     };
   });
 
@@ -1182,7 +1192,7 @@ function saveBal(){
 }
 
 function buildFundGroups() {
-  const mv   = monthVouchers().filter(v => parseAmt(v.gyulAmt) > 0);
+  const mv   = monthVouchers().filter(v => parseAmt(v.gyulAmt) > 0 && v.gyulType1Code !== '입금');
   const done = mv.filter(v => v.approvalStatus === '결재완료');
   const pend = mv.filter(v => v.approvalStatus === '결재미상신');
   const groups = {}, pendGroups = {};
@@ -1354,6 +1364,14 @@ function saveFundNote(slipNo, field, value) {
   if (field === 'note')  S.fundNotes[slipNo]  = value;
   if (field === 'descr') S.fundDescrs[slipNo] = value;
   saveState();
+  // vChanges에 등록해서 저장 버튼 활성화 (지출예정일이 없으면 현재값 유지)
+  if (!vChanges[slipNo]) {
+    const v = S.vouchers.find(x => x.slipNo === slipNo) || {};
+    vChanges[slipNo] = { payDate: v.payDate || '' };
+  }
+  const cnt = Object.keys(vChanges).length;
+  const el = document.getElementById('vChangeCnt');
+  if (el) { el.textContent = cnt+'건 변경됨'; el.style.display=''; }
 }
 
 async function saveDailyPlanToSheets() {
