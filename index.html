@@ -141,27 +141,34 @@ select.fi option{background:var(--bg)}
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   html, body { overflow:visible!important; height:auto!important; }
-  body{background:#fff!important;color:#111!important}
-  .side,.topbar,.month-tabs,.fbar,.tfoot,.btn,.nav-item,#toasts,.loading-overlay,
-  #viewModeCard,#viewModeTable,#savePlanBtn{display:none!important}
-  .app{display:block!important}.body{overflow:visible!important}
-  .content{overflow:visible!important;padding:0!important}
-  .page{display:block!important}
-  #page-fund{display:block!important}
-  #fpGrid{display:none!important}
-  #fpTableView{display:block!important}
-  .plan-section{border:1px solid #ccc!important;background:#fff!important;page-break-inside:avoid}
-  .plan-sec-head{background:#f0f4ff!important;color:#111!important}
-  .plan-sec-title,.plan-sec-total{color:#111!important}
-  .plan-tbl thead th{background:#e8edf8!important;color:#333!important;border-bottom:2px solid #999!important}
-  .plan-tbl tbody td{color:#111!important}
-  .plan-subtotal td{background:#dbeafe!important;color:#1e40af!important}
-  .plan-hl{background:#fffbeb!important}
-  /* 재고현황 인쇄 전용 */
-  body.print-inventory * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
-  body.print-inventory .side,
-  body.print-inventory .topbar,
-  body.print-inventory .month-tabs { display:none!important }
+  body { background:#fff!important;color:#111!important }
+
+  /* ── 공통: 항상 숨기는 요소 ── */
+  .side,.topbar,.month-tabs,.fbar,.btn,.nav-item,#toasts,.loading-overlay { display:none!important }
+
+  /* ── 일일자금계획 인쇄 (기본, print-inventory 없을 때) ── */
+  body:not(.print-inventory) .app { display:block!important }
+  body:not(.print-inventory) .body { overflow:visible!important }
+  body:not(.print-inventory) .content { overflow:visible!important;padding:0!important }
+  body:not(.print-inventory) .page { display:none!important }
+  body:not(.print-inventory) #page-fund { display:block!important }
+  body:not(.print-inventory) #viewModeCard,
+  body:not(.print-inventory) #viewModeTable,
+  body:not(.print-inventory) #savePlanBtn,
+  body:not(.print-inventory) #tfoot { display:none!important }
+  body:not(.print-inventory) #fpGrid { display:none!important }
+  body:not(.print-inventory) #fpTableView { display:block!important }
+  body:not(.print-inventory) .plan-section { border:1px solid #ccc!important;background:#fff!important;page-break-inside:avoid }
+  body:not(.print-inventory) .plan-sec-head { background:#f0f4ff!important;color:#111!important }
+  body:not(.print-inventory) .plan-sec-title,
+  body:not(.print-inventory) .plan-sec-total { color:#111!important }
+  body:not(.print-inventory) .plan-tbl thead th { background:#e8edf8!important;color:#333!important;border-bottom:2px solid #999!important }
+  body:not(.print-inventory) .plan-tbl tbody td { color:#111!important }
+  body:not(.print-inventory) .plan-subtotal td { background:#dbeafe!important;color:#1e40af!important }
+  body:not(.print-inventory) .plan-hl { background:#fffbeb!important }
+
+  /* ── 재고현황 인쇄 (print-inventory 클래스일 때) ── */
+  body.print-inventory * { -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important }
   body.print-inventory .app { display:block!important;height:auto!important;overflow:visible!important }
   body.print-inventory .body { width:100%!important;overflow:visible!important;height:auto!important }
   body.print-inventory .content { overflow:visible!important;padding:4px!important;height:auto!important }
