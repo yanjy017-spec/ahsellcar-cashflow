@@ -139,6 +139,7 @@ select.fi option{background:var(--bg)}
 .plan-hl{background:rgba(240,160,64,.08)!important}
 /* 인쇄 */
 @media print {
+  @page { size: A4 landscape; margin: 10mm; }
   body{background:#fff!important;color:#111!important}
   .side,.topbar,.month-tabs,.fbar,.tfoot,.btn,.nav-item,#toasts,.loading-overlay,
   #viewModeCard,#viewModeTable,#savePlanBtn{display:none!important}
@@ -156,22 +157,31 @@ select.fi option{background:var(--bg)}
   .plan-subtotal td{background:#dbeafe!important;color:#1e40af!important}
   .plan-hl{background:#fffbeb!important}
   /* 재고현황 인쇄 전용 */
+  body.print-inventory * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
   body.print-inventory .side,
   body.print-inventory .topbar,
   body.print-inventory .month-tabs { display:none!important }
   body.print-inventory .app { display:block!important }
   body.print-inventory .body { width:100%!important;overflow:visible!important }
-  body.print-inventory .content { overflow:visible!important;padding:8px!important }
+  body.print-inventory .content { overflow:visible!important;padding:4px!important }
   body.print-inventory .page { display:none!important }
   body.print-inventory #page-inventory { display:block!important }
-  body.print-inventory #invContent { overflow:visible!important }
-  body.print-inventory #invContent table { font-size:11px!important;width:100%!important }
+  body.print-inventory #page-inventory .panel { border:none!important;box-shadow:none!important }
+  body.print-inventory #page-inventory .ph { position:static!important;box-shadow:none!important }
+  body.print-inventory #page-inventory .ph .btn { display:none!important }
+  body.print-inventory #invContent { overflow:visible!important;max-height:none!important }
+  body.print-inventory #invContent > div { overflow:visible!important;max-height:none!important }
+  body.print-inventory #invContent table { font-size:10px!important;width:100%!important;table-layout:fixed!important }
   body.print-inventory #invContent th,
-  body.print-inventory #invContent td { padding:5px 8px!important;color:#111!important;background:#fff!important;position:static!important }
-  body.print-inventory #invContent thead th { background:#2f5496!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
-  body.print-inventory #invContent tr:has(td[colspan="2"][style*="1e40af"]) td { background:#1e40af!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
-  body.print-inventory #invContent tr[style*="dbeafe"] td { background:#dbeafe!important;color:#1e40af!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
-  body.print-inventory .inv-print-header { display:block!important }
+  body.print-inventory #invContent td { padding:4px 6px!important;position:static!important;word-break:keep-all!important }
+  body.print-inventory #invContent thead th:nth-child(1) { width:22%!important }
+  body.print-inventory #invContent thead th:nth-child(2) { width:22%!important }
+  body.print-inventory #invContent thead th:nth-child(3) { width:8%!important }
+  body.print-inventory #invContent thead th:nth-child(4),
+  body.print-inventory #invContent thead th:nth-child(5),
+  body.print-inventory #invContent thead th:nth-child(6) { width:16%!important }
+  body.print-inventory #invContent thead { display:table-header-group!important }
+  body.print-inventory #invContent tbody tr { page-break-inside:avoid!important }
 }
 </style>
 </head>
