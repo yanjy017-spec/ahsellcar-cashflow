@@ -179,15 +179,15 @@ select.fi option{background:var(--bg)}
   body.print-inventory #page-inventory .ph .btn { display:none!important }
   body.print-inventory #invContent { overflow:visible!important;max-height:none!important }
   body.print-inventory #invContent > div { overflow:visible!important;max-height:none!important }
-  body.print-inventory #invContent table { font-size:10px!important;width:100%!important;table-layout:fixed!important }
+  body.print-inventory #invContent table { font-size:12px!important;width:100%!important;table-layout:fixed!important }
   body.print-inventory #invContent th,
-  body.print-inventory #invContent td { padding:4px 6px!important;position:static!important;word-break:keep-all!important }
-  body.print-inventory #invContent thead th:nth-child(1) { width:22%!important }
-  body.print-inventory #invContent thead th:nth-child(2) { width:22%!important }
+  body.print-inventory #invContent td { padding:6px 8px!important;position:static!important;word-break:keep-all!important;font-size:12px!important }
+  body.print-inventory #invContent thead th:nth-child(1) { width:16%!important }
+  body.print-inventory #invContent thead th:nth-child(2) { width:24%!important }
   body.print-inventory #invContent thead th:nth-child(3) { width:8%!important }
   body.print-inventory #invContent thead th:nth-child(4),
   body.print-inventory #invContent thead th:nth-child(5),
-  body.print-inventory #invContent thead th:nth-child(6) { width:16%!important }
+  body.print-inventory #invContent thead th:nth-child(6) { width:17%!important }
   body.print-inventory #invContent thead { display:table-header-group!important }
   body.print-inventory #invContent tbody tr { page-break-inside:avoid!important }
 }
@@ -1617,9 +1617,18 @@ function renderAuto(){
 
 // ══ 엑셀 내보내기 ═════════════════════════════════
 function printInventory() {
+  // 재고현황 인쇄 시 세로 방향으로 전환
+  const styleEl = document.createElement('style');
+  styleEl.id = 'inv-print-page';
+  styleEl.textContent = '@media print { @page { size: A4 portrait; margin: 10mm; } }';
+  document.head.appendChild(styleEl);
+
   document.body.classList.add('print-inventory');
   window.print();
-  setTimeout(() => document.body.classList.remove('print-inventory'), 500);
+  setTimeout(() => {
+    document.body.classList.remove('print-inventory');
+    document.getElementById('inv-print-page')?.remove();
+  }, 500);
 }
 
 function exportXlsx(){
