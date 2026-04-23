@@ -140,6 +140,7 @@ select.fi option{background:var(--bg)}
 /* 인쇄 */
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
+  html, body { overflow:visible!important; height:auto!important; }
   body{background:#fff!important;color:#111!important}
   .side,.topbar,.month-tabs,.fbar,.tfoot,.btn,.nav-item,#toasts,.loading-overlay,
   #viewModeCard,#viewModeTable,#savePlanBtn{display:none!important}
@@ -161,9 +162,9 @@ select.fi option{background:var(--bg)}
   body.print-inventory .side,
   body.print-inventory .topbar,
   body.print-inventory .month-tabs { display:none!important }
-  body.print-inventory .app { display:block!important }
-  body.print-inventory .body { width:100%!important;overflow:visible!important }
-  body.print-inventory .content { overflow:visible!important;padding:4px!important }
+  body.print-inventory .app { display:block!important;height:auto!important;overflow:visible!important }
+  body.print-inventory .body { width:100%!important;overflow:visible!important;height:auto!important }
+  body.print-inventory .content { overflow:visible!important;padding:4px!important;height:auto!important }
   body.print-inventory .page { display:none!important }
   body.print-inventory #page-inventory { display:block!important }
   body.print-inventory #page-inventory .panel { border:none!important;box-shadow:none!important }
