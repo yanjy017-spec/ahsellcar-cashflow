@@ -155,6 +155,23 @@ select.fi option{background:var(--bg)}
   .plan-tbl tbody td{color:#111!important}
   .plan-subtotal td{background:#dbeafe!important;color:#1e40af!important}
   .plan-hl{background:#fffbeb!important}
+  /* 재고현황 인쇄 전용 */
+  body.print-inventory .side,
+  body.print-inventory .topbar,
+  body.print-inventory .month-tabs { display:none!important }
+  body.print-inventory .app { display:block!important }
+  body.print-inventory .body { width:100%!important;overflow:visible!important }
+  body.print-inventory .content { overflow:visible!important;padding:8px!important }
+  body.print-inventory .page { display:none!important }
+  body.print-inventory #page-inventory { display:block!important }
+  body.print-inventory #invContent { overflow:visible!important }
+  body.print-inventory #invContent table { font-size:11px!important;width:100%!important }
+  body.print-inventory #invContent th,
+  body.print-inventory #invContent td { padding:5px 8px!important;color:#111!important;background:#fff!important;position:static!important }
+  body.print-inventory #invContent thead th { background:#2f5496!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
+  body.print-inventory #invContent tr:has(td[colspan="2"][style*="1e40af"]) td { background:#1e40af!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
+  body.print-inventory #invContent tr[style*="dbeafe"] td { background:#dbeafe!important;color:#1e40af!important;-webkit-print-color-adjust:exact;print-color-adjust:exact }
+  body.print-inventory .inv-print-header { display:block!important }
 }
 </style>
 </head>
@@ -321,6 +338,7 @@ select.fi option{background:var(--bg)}
         <div class="ph" style="background:#fff;border-color:#e5e7eb;position:sticky;top:0;z-index:20;border-radius:12px 12px 0 0">
           <span class="ph-title" style="color:#111;font-size:15px">📦 현재 재고현황</span>
           <span class="sync-info" id="invSyncInfo" style="color:#555"></span>
+          <button class="btn btn-ghost btn-sm" onclick="printInventory()" style="color:#555;border-color:#ddd;font-size:11.5px">🖨️ 인쇄</button>
         </div>
         <div class="pb" id="invContent" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
       </div>
@@ -766,6 +784,7 @@ async function initApp() {
         <span style="font-size:15px;font-weight:700;color:#dde3ef;flex:1">📦 현재 재고현황</span>
         <span class="sync-info"><div class="sync-dot" id="syncDot"></div><span id="syncTime">-</span></span>
         <button class="btn btn-ghost btn-sm" onclick="loadInventoryOnly()" style="font-size:12px">↻</button>
+        <button class="btn btn-ghost btn-sm" onclick="printInventory()" style="font-size:12px">🖨️ 인쇄</button>
         <button class="btn btn-pri btn-sm" onclick="exportXlsx()" style="font-size:12px">↓ 엑셀</button>
       `;
       topbar.style.padding = '0 12px';
@@ -1042,26 +1061,6 @@ function renderDash() {
 // 변경 추적 맵 {slipNo → {payDate, payWayCode}}
 let vChanges = {};
 
-// 지출예정일 입력 셀에서 ↑ 또는 Ctrl+D → 바로 위 행 날짜 복사
-function copyAboveDate(e, el) {
-  const isUp    = e.key === 'ArrowUp';
-  const isCtrlD = e.key === 'd' && (e.ctrlKey || e.metaKey);
-  if (!isUp && !isCtrlD) return;
-  e.preventDefault();
-
-  // 현재 셀이 속한 <tr>의 이전 <tr>에서 날짜 input 찾기
-  const tr    = el.closest('tr');
-  const prevTr= tr?.previousElementSibling;
-  if (!prevTr) return;
-
-  const prevInput = prevTr.querySelector('input[data-field="payDate"]');
-  if (!prevInput || !prevInput.value) return;
-
-  el.value = prevInput.value;
-  markVChange(el.dataset.slip, 'payDate', el.value);
-  el.focus();
-}
-
 function markVChange(slipNo, field, val) {
   if (!vChanges[slipNo]) vChanges[slipNo] = {};
   vChanges[slipNo][field] = val;
@@ -1122,7 +1121,6 @@ function renderVoucher(){
       onfocus="this.style.borderColor='var(--acc)'"
       onblur="this.style.borderColor='${hasPayDate?'transparent':'rgba(74,128,255,.3)'}'"
       oninput="markVChange('${r.slipNo}','payDate',this.value)"
-      onkeydown="copyAboveDate(event,this)"
       data-slip="${r.slipNo}" data-field="payDate"
     >`;
 
@@ -1600,6 +1598,12 @@ function renderAuto(){
 }
 
 // ══ 엑셀 내보내기 ═════════════════════════════════
+function printInventory() {
+  document.body.classList.add('print-inventory');
+  window.print();
+  setTimeout(() => document.body.classList.remove('print-inventory'), 500);
+}
+
 function exportXlsx(){
   // 현재 재고 페이지면 재고 엑셀
   if (curPage === 'inventory') {
